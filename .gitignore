@@ -1,0 +1,41 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+.aws/
+*credentials*
+*secret*
+*token*
+
+# Large source datasets and audio
+datasets/ami/audio/
+datasets/ami/annotations/
+datasets/librispeech/test_clean
+datasets/librispeech/audio/
+datasets/common_voice/clips/
+*.wav
+*.mp3
+*.flac
+*.parquet
+*.tar
+*.tar.gz
+*.zip
+
+# Generated or temporary results
+Results/*.json
+Results/*.log
+
+# Explicit exclusions for capitalized dataset directories
+Datasets/AMI/Audio/
+Datasets/AMI/Annotations/
+Datasets/Librispeech/audio/
+Datasets/Librispeech/test_clean
+Datasets/Common_Voice/clips/
+Datasets/common_voice/clips/

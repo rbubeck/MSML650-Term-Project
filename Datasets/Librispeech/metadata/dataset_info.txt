@@ -1,0 +1,4 @@
+Dataset: LibriSpeech test-clean
+Rows in source Parquet file: 2620
+Exported examples: 5
+Audio exported as 16-bit PCM WAV.

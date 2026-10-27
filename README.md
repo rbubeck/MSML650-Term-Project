@@ -6,13 +6,12 @@ This repository supports the testing, performance evaluation, and monitoring of 
 
 The project prepares audio datasets and reference transcripts so that transcription outputs can be compared against known text. The resulting measurements can be used to evaluate transcription accuracy and investigate performance across different audio samples.
 
-The repository currently includes preparation scripts and reference data for:
+The project currently focuses on two datasets:
 
-- **AMI Meeting Corpus:** Meeting audio and annotations used to prepare reference transcripts.
-- **LibriSpeech:** English speech recordings with corresponding reference transcripts.
-- **Common Voice:** An additional English speech dataset being prepared for potential evaluation.
+- **AMI Meeting Corpus:** Meeting audio and annotations used to prepare reference transcripts. This dataset can help evaluate transcription of multi-speaker conversations and overlapping speech.
+- **LibriSpeech:** English speech recordings with corresponding reference transcripts, useful for evaluating transcription accuracy on cleaner speech.
 
-The broader AWS workflow may use Amazon S3 to store audio files, Amazon Transcribe to generate transcripts, AWS Lambda to automate processing, and Amazon CloudWatch to monitor execution and performance.
+The broader AWS workflow uses or may incorporate Amazon S3 for audio storage, Amazon Transcribe for transcription, AWS Lambda for automated processing, and Amazon CloudWatch for monitoring and performance measurements.
 
 ## 2. Repository Structure
 
@@ -29,12 +28,11 @@ Audio_Transcription_Testing/
 │   │   ├── Audio/
 │   │   ├── Annotations/
 │   │   └── Metadata/
-│   ├── Librispeech/
-│   │   ├── audio/
-│   │   ├── metadata/
-│   │   ├── transcripts/
-│   │   └── test_clean
-│   └── common_voice/
+│   └── Librispeech/
+│       ├── audio/
+│       ├── metadata/
+│       ├── transcripts/
+│       └── test_clean
 ├── Results/
 │   ├── ES2004a_reference_words.csv
 │   ├── ES2004a_reference_transcript.txt
@@ -48,7 +46,7 @@ Audio_Transcription_Testing/
 
 - Python 3
 - Git
-- Access to the required datasets
+- Access to the required AMI and LibriSpeech datasets
 - An AWS account and appropriate permissions for AWS-based testing
 - AWS CLI, if uploading files or interacting with AWS from the terminal
 
@@ -98,7 +96,7 @@ The preparation scripts produce the following reference artifacts:
 
 | Output | Description |
 |---|---|
-| `Results/ES2004a_reference_words.csv` | Word-level reference data prepared from the AMI annotations |
+| `Results/ES2004a_reference_words.csv` | Word-level reference data prepared from AMI annotations |
 | `Results/ES2004a_reference_transcript.txt` | Reference transcript text |
 | `Results/ES2004a_reference_normalized.txt` | Normalized reference transcript for text comparison |
 
@@ -117,33 +115,3 @@ python Scripts/normalize_ami_reference.py
 These commands assume the scripts use the expected relative paths and that the required dataset files are present locally.
 
 ### 5.2 LibriSpeech
-
-The LibriSpeech preparation workflow extracts audio clips and reference transcripts from the dataset.
-
-The prepared data includes:
-
-- WAV audio clips under `Datasets/Librispeech/audio/`
-- Dataset metadata under `Datasets/Librispeech/metadata/`
-- Reference records in `Datasets/Librispeech/transcripts/references.csv`
-
-The reference CSV contains fields such as audio filename, reference text, speaker ID, chapter ID, and sample rate.
-
-Run the preparation script from the repository root:
-
-```bash
-python Scripts/prepare_librispeech.py
-```
-
-The script requires the source dataset to be available locally. Consult the script for its expected input path and output behavior.
-
-The initial prepared subset contains five audio clips. This is useful for validating the workflow, but a larger and more varied sample is recommended for meaningful performance comparisons.
-
-### 5.3 Common Voice
-
-Common Voice is an additional candidate dataset for English speech evaluation.
-
-Before using it:
-
-1. Obtain the dataset from the official [Common Voice website](https://commonvoice.mozilla.org/en/datasets).
-2. Extract the downloaded archive locally.
-3. Inspect

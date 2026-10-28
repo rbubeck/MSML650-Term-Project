@@ -236,20 +236,37 @@ Generally, do not commit:
 
 Dataset users are responsible for obtaining the source datasets and complying with their licenses and terms of use.
 
-## 10. Current Status and Future Work
+## Progress Update — October 28, 2026
 
-The current repository includes initial AMI reference preparation, transcript normalization, and LibriSpeech subset extraction.
+### Completed Work
 
-Planned next steps include:
+**Word Error Rate (WER) Evaluation**
+Created three Python scripts to support automated transcription evaluation:
 
-- Finalizing dataset preparation and sample selection
-- Uploading selected audio samples to Amazon S3
-- Running Amazon Transcribe jobs
-- Collecting and storing transcription outputs
-- Implementing automated WER calculation
-- Measuring transcription latency and processing failures
-- Monitoring AWS execution through CloudWatch
-- Comparing results across AMI meeting audio and LibriSpeech speech samples
-- Documenting findings, limitations, and reproducible test procedures
+- `Scripts/evaluate_wer.py`: Calculates word-level substitutions, deletions, insertions, edit distance, and WER.
+- `Scripts/evaluate_wer_batch.py`: Evaluates multiple reference/hypothesis pairs and calculates aggregate WER.
+- `Scripts/evaluate_librispeech.py`: Evaluates LibriSpeech hypotheses against the reference transcript CSV and generates individual and aggregate evaluation summaries.
 
-The evaluation will focus on AMI and LibriSpeech. Additional datasets may be considered in future work if resources and project requirements allow.
+The scripts were validated using synthetic reference and hypothesis transcripts. These tests confirmed the evaluation logic and output format; they are not measurements of Amazon Transcribe accuracy.
+
+### Current Status
+
+The dataset preparation and initial WER evaluation framework are in place. The evaluator is ready to process hypothesis transcripts in the expected format, but genuine transcription performance results have not yet been collected.
+
+### Next Steps
+
+1. Integrate the evaluation workflow with Amazon Transcribe and generate actual hypothesis transcripts.
+2. Calculate individual and aggregate WER for the prepared AMI and LibriSpeech samples.
+3. Measure transcription latency, job completion time, failure rate, and reliability.
+4. Evaluate performance under concurrent workloads to assess scalability.
+5. Integrate CloudWatch logs and metrics for monitoring and troubleshooting.
+6. Document experimental results and prepare tables or visualizations for the final report.
+
+### Challenges and Resolutions
+
+- **Dataset preparation:** AMI annotations required transcript extraction and normalization; Python scripts were used to produce consistent reference files.
+- **Data format and dependencies:** LibriSpeech audio and transcript data required additional extraction and Python dependency setup.
+- **Path compatibility:** Windows/WSL case-sensitive path differences required attention when organizing dataset directories.
+- **Storage limitations:** Common Voice was removed from the current scope to avoid exceeding available disk space.
+- **Git synchronization:** Remote README commits initially prevented a direct push. Fetching and merging the remote changes preserved both the README updates and the new evaluation scripts.
+

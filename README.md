@@ -1,272 +1,182 @@
-# Audio Transcription Testing and Evaluation
+# Multi-User Live Speech-to-Text Platform
 
-## 1. Project Overview
+Status: architecture/bootstrap phase; product services are not implemented or deployed.
 
-This repository supports the testing, performance evaluation, and monitoring of an audio transcription pipeline using **Amazon Transcribe** and AWS services.
+This project is building a secure browser-based live transcription product on AWS. Multiple authenticated users will independently stream microphone audio through an application-owned WebSocket backend running on Amazon ECS/Fargate. The backend controls Amazon Transcribe Streaming connections, durable final-segment checkpoints, session lifecycle, and private transcript history.
 
-The project prepares audio datasets and reference transcripts so that transcription outputs can be compared against known text. The resulting measurements can be used to evaluate transcription accuracy and investigate performance across different audio samples.
+The source charter is [direction_option_b.md](direction_option_b.md). Proposed architecture and contracts require team approval before product feature work begins.
 
-The project currently focuses on two datasets:
+The untracked legacy brief `speech_to_text_direction.md` describes the conflicting direct-browser Option A. It has been preserved for review but is not the active charter for this Option B bootstrap; the team should archive or clearly supersede it after confirming repository history.
 
-- **AMI Meeting Corpus:** Meeting audio and annotations used to prepare reference transcripts. This dataset can help evaluate transcription of multi-speaker conversations and overlapping speech.
-- **LibriSpeech:** English speech recordings with corresponding reference transcripts, useful for evaluating transcription accuracy on cleaner speech.
+## MVP
 
-The broader AWS workflow uses or may incorporate Amazon S3 for audio storage, Amazon Transcribe for transcription, AWS Lambda for automated processing, and Amazon CloudWatch for monitoring and performance measurements.
+The MVP is intended to support:
 
-## 2. Repository Structure
+- Cognito signup, login, recovery, and profile preferences;
+- live microphone capture and captions in a React application;
+- authenticated WSS audio through ALB to a Node.js/TypeScript Fargate service;
+- backend-managed Amazon Transcribe Streaming;
+- durable final transcript checkpoints and completed JSON/TXT exports;
+- owner-only history, view, rename, download, and deletion;
+- concurrent independent users with admission control and explicit failure states.
+
+Shared rooms, multiple microphones in one meeting, live speaker identity, video calling, summaries, translations, sentiment, raw-audio storage, and seamless active-socket failover are not MVP features.
+
+## Architecture summary
 
 ```text
-Audio_Transcription_Testing/
-├── README.md
-├── .gitignore
-├── Scripts/
-│   ├── prepare_ami_transcript.py
-│   ├── normalize_ami_reference.py
-│   └── prepare_librispeech.py
-├── Datasets/
-│   ├── AMI/
-│   │   ├── Audio/
-│   │   ├── Annotations/
-│   │   └── Metadata/
-│   └── Librispeech/
-│       ├── audio/
-│       ├── metadata/
-│       ├── transcripts/
-│       └── test_clean
-├── Results/
-│   ├── ES2004a_reference_words.csv
-│   ├── ES2004a_reference_transcript.txt
-│   └── ES2004a_reference_normalized.txt
-└── .venv/
+React + AudioWorklet ──WSS──> ALB ──> ECS/Fargate streaming service
+                                              │
+                                              └──> Amazon Transcribe Streaming
+
+React ──HTTPS/JWT──> API Gateway ──> Lambda ──> DynamoDB + S3
+         Cognito          control plane          metadata, segments, exports
 ```
 
-**Note:** This tree illustrates the local project layout. Large source datasets, audio files, and the Python virtual environment are excluded from Git and are not expected to appear in the GitHub repository. Directory capitalization may differ depending on the local setup.
+The browser never connects directly to Transcribe and never receives permanent AWS credentials. Continuous audio does not flow through Lambda or API Gateway WebSocket routes. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## 3. Requirements
+## Documentation and decisions
 
-- Python 3
-- Git
-- Access to the required AMI and LibriSpeech datasets
-- An AWS account and appropriate permissions for AWS-based testing
-- AWS CLI, if uploading files or interacting with AWS from the terminal
+- [Architecture](ARCHITECTURE.md)
+- [API and WebSocket contracts](API_CONTRACTS.md)
+- [Machine-readable contract proposals](packages/contracts/README.md)
+- [Integration plan](INTEGRATION_PLAN.md)
+- [Agent and ownership rules](AGENTS.md)
+- [Security specification](docs/security.md)
+- [Data model](docs/data-model.md)
+- [Streaming protocol](docs/streaming-protocol.md)
+- [ADR register](docs/adr/README.md)
+- [Evaluation methodology](evaluation/README.md)
 
-The Python virtual environment is local to each developer's machine and should not be committed to Git.
+All ADRs are currently proposed. They are not implementation or deployment claims.
 
-## 4. Environment Setup
+## Intended repository layout
 
-From the project root, create and activate a virtual environment if one does not already exist.
+```text
+.
+├── frontend/                 # Person 1: React UX and browser audio
+├── backend/
+│   ├── api/                  # Person 2: HTTP control plane
+│   ├── streaming/            # Person 3: WSS and Transcribe integration
+│   └── persistence/          # Person 4: storage adapters
+├── packages/
+│   ├── contracts/            # shared runtime schemas and types
+│   └── stream-client/        # browser streaming integration
+├── infrastructure/           # Person 4: AWS CDK
+├── evaluation/               # Person 5: quality methodology/tooling
+├── tests/
+│   ├── integration/
+│   └── e2e/
+├── Scripts/                  # existing evaluation prototype; migration pending
+├── Datasets/                 # local/reference metadata; large audio excluded
+├── Results/                  # existing reference artifacts
+└── docs/
+    ├── adr/
+    └── runbooks/
+```
 
-### Linux or WSL
+Product directories will be scaffolded only after the team approves workspace tooling and contracts. Do not create independent component repositories or duplicate shared types.
+
+## Existing evaluation prototype
+
+The repository currently contains Python tools that prepare AMI/LibriSpeech references and calculate word error rate:
+
+- `Scripts/prepare_ami_transcript.py`
+- `Scripts/normalize_ami_reference.py`
+- `Scripts/prepare_librispeech.py`
+- `Scripts/evaluate_wer.py`
+- `Scripts/evaluate_wer_batch.py`
+- `Scripts/evaluate_librispeech.py`
+
+These scripts are useful input for Person 5 but are not production services. Current results are reference/synthetic evaluation artifacts, not verified Amazon Transcribe accuracy measurements. Known migration work is documented in [evaluation/README.md](evaluation/README.md).
+
+## Prerequisites
+
+Documentation review currently requires only Git and a Markdown viewer.
+
+Future implementation is expected to require:
+
+- a team-approved Node.js version and TypeScript workspace tool;
+- Python 3 for evaluation tooling;
+- an approved AWS account/Region and AWS CLI/SSO access;
+- AWS CDK after infrastructure scaffolding;
+- Docker for the streaming service image;
+- access to licensed/approved evaluation audio.
+
+Do not create long-lived AWS access keys for this project. Never commit credentials, `.env` secrets, user audio, or private transcripts.
+
+## Current safe checks
+
+From the repository root:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
+python3 -m compileall -q Scripts
+git status --short
 ```
 
-Install the dependencies required by the preparation scripts:
+The first command checks Python syntax only; it does not run WER tests, install dependencies, contact AWS, or validate datasets.
+
+## Not-yet-implemented commands
+
+The following are planned interfaces, not currently valid commands:
 
 ```bash
-pip install pandas pyarrow soundfile
+# Planned only — workspace/tooling requires approval
+npm install
+npm run lint
+npm test
+npm run build
+
+# Planned only — infrastructure does not exist
+npx cdk synth
+npx cdk deploy <approved-dev-stack>
 ```
 
-Additional packages may be needed depending on the specific script implementation and dataset format.
-
-To record the current environment's installed packages:
-
-```bash
-pip freeze > requirements.txt
-```
-
-Review the generated `requirements.txt` before committing it to ensure it contains only appropriate project dependencies.
-
-## 5. Dataset Preparation
-
-### 5.1 AMI Meeting Corpus
-
-The AMI preparation workflow uses meeting audio and annotation files to create reference transcripts.
-
-Expected local files include:
-
-- Meeting audio, such as `ES2004a.Mix-Headset.wav`
-- AMI annotation XML files
-- AMI dataset metadata
-
-The preparation scripts produce the following reference artifacts:
-
-| Output | Description |
-|---|---|
-| `Results/ES2004a_reference_words.csv` | Word-level reference data prepared from AMI annotations |
-| `Results/ES2004a_reference_transcript.txt` | Reference transcript text |
-| `Results/ES2004a_reference_normalized.txt` | Normalized reference transcript for text comparison |
-
-Run the preparation script from the repository root:
-
-```bash
-python Scripts/prepare_ami_transcript.py
-```
-
-Then run the normalization script:
-
-```bash
-python Scripts/normalize_ami_reference.py
-```
-
-These commands assume the scripts use the expected relative paths and that the required dataset files are present locally.
-
-### 5.2 LibriSpeech
-
-The LibriSpeech preparation workflow extracts audio clips and reference transcripts from the dataset.
-
-The prepared data includes:
-
-- WAV audio clips under `Datasets/Librispeech/audio/`
-- Dataset metadata under `Datasets/Librispeech/metadata/`
-- Reference records in `Datasets/Librispeech/transcripts/references.csv`
-
-The reference CSV contains fields such as audio filename, reference text, speaker ID, chapter ID, and sample rate.
-
-Run the preparation script from the repository root:
-
-```bash
-python Scripts/prepare_librispeech.py
-```
-
-The script requires the source dataset to be available locally. Consult the script for its expected input path and output behavior.
-
-The initial prepared subset contains five audio clips. This is useful for validating the workflow, but a larger and more varied sample is recommended for meaningful performance comparisons.
-
-## 6. Transcription Evaluation
-
-The goal of the evaluation pipeline is to compare transcripts generated by Amazon Transcribe against prepared reference transcripts.
-
-A typical evaluation workflow is:
-
-1. Select an audio sample and its reference transcript.
-2. Upload the audio to Amazon S3.
-3. Submit a transcription job to Amazon Transcribe.
-4. Retrieve the resulting transcript.
-5. Normalize the reference and hypothesis using consistent rules.
-6. Calculate transcription accuracy metrics.
-7. Record runtime, failures, and other relevant performance measurements.
-8. Store evaluation results for comparison and reporting.
-
-### Word Error Rate
-
-The primary accuracy metric is **Word Error Rate (WER)**:
-
-\[
-WER = \frac{S + D + I}{N}
-\]
-
-Where:
-
-- \(S\) = number of substitutions
-- \(D\) = number of deletions
-- \(I\) = number of insertions
-- \(N\) = number of words in the reference transcript
-
-Lower WER generally indicates better transcription accuracy. WER can exceed 1.0 (100%) when the number of errors exceeds the number of reference words.
-
-Reference and hypothesis transcripts should use consistent normalization rules for casing, punctuation, numbers, and other text conventions. Any excluded fillers, partial words, or overlapping speech should be documented because those decisions can affect the score.
-
-For meeting audio, speaker diarization and overlapping speech may require separate evaluation from ordinary word-level WER.
-
-## 7. AWS Services and Monitoring
-
-The broader system may use the following AWS services:
-
-| Service | Intended role |
-|---|---|
-| Amazon S3 | Store source audio and transcription output |
-| Amazon Transcribe | Convert audio into text |
-| AWS Lambda | Automate job submission and result processing |
-| Amazon CloudWatch | Collect logs, metrics, errors, and timing information |
-| AWS IAM | Manage permissions for AWS resources and services |
-| Amazon DynamoDB | Optionally store job metadata and evaluation results |
-| Amazon Cognito | Optionally manage application authentication |
-
-The precise implementation and deployment status of each service should be documented as the system develops.
-
-Do not commit AWS access keys, secret keys, session tokens, `.env` files containing credentials, or other sensitive configuration to this repository.
-
-## 8. Git and Collaboration
-
-Clone the private repository:
-
-```bash
-git clone git@github.com:rbubeck/MSML650-Term-Project.git
-cd MSML650-Term-Project
-```
-
-Create a local virtual environment and install the required dependencies before running scripts.
-
-To contribute changes:
-
-```bash
-git status
-git add <specific-file>
-git commit -m "Describe your change"
-git push
-```
-
-Use descriptive commit messages and avoid committing large source datasets, generated audio, virtual environments, or credentials.
-
-Team members must be granted access to the private GitHub repository before they can clone it.
-
-## 9. Data and Version-Control Guidelines
-
-The `.gitignore` file excludes large datasets and audio files so the repository remains manageable.
-
-Generally, commit:
-
-- Python preparation and evaluation scripts
-- Documentation
-- Dependency specifications
-- Small reference files and metadata when permitted
-- Small, useful evaluation summaries
-
-Generally, do not commit:
-
-- Full audio datasets or large archives
-- Large Parquet source files
-- Virtual environments or Python caches
-- AWS credentials or other secrets
-- Large generated output files
-
-Dataset users are responsible for obtaining the source datasets and complying with their licenses and terms of use.
-
-## Progress Update — October 28, 2026
-
-### Completed Work
-
-**Word Error Rate (WER) Evaluation**
-Created three Python scripts to support automated transcription evaluation:
-
-- `Scripts/evaluate_wer.py`: Calculates word-level substitutions, deletions, insertions, edit distance, and WER.
-- `Scripts/evaluate_wer_batch.py`: Evaluates multiple reference/hypothesis pairs and calculates aggregate WER.
-- `Scripts/evaluate_librispeech.py`: Evaluates LibriSpeech hypotheses against the reference transcript CSV and generates individual and aggregate evaluation summaries.
-
-The scripts were validated using synthetic reference and hypothesis transcripts. These tests confirmed the evaluation logic and output format; they are not measurements of Amazon Transcribe accuracy.
-
-### Current Status
-
-The dataset preparation and initial WER evaluation framework are in place. The evaluator is ready to process hypothesis transcripts in the expected format, but genuine transcription performance results have not yet been collected.
-
-### Next Steps
-
-1. Integrate the evaluation workflow with Amazon Transcribe and generate actual hypothesis transcripts.
-2. Calculate individual and aggregate WER for the prepared AMI and LibriSpeech samples.
-3. Measure transcription latency, job completion time, failure rate, and reliability.
-4. Evaluate performance under concurrent workloads to assess scalability.
-5. Integrate CloudWatch logs and metrics for monitoring and troubleshooting.
-6. Document experimental results and prepare tables or visualizations for the final report.
-
-### Challenges and Resolutions
-
-- **Dataset preparation:** AMI annotations required transcript extraction and normalization; Python scripts were used to produce consistent reference files.
-- **Data format and dependencies:** LibriSpeech audio and transcript data required additional extraction and Python dependency setup.
-- **Path compatibility:** Windows/WSL case-sensitive path differences required attention when organizing dataset directories.
-- **Storage limitations:** Common Voice was removed from the current scope to avoid exceeding available disk space.
-- **Git synchronization:** Remote README commits initially prevented a direct push. Fetching and merging the remote changes preserved both the README updates and the new evaluation scripts.
+No documentation should imply these work until their configuration is merged and CI proves it.
+
+## Collaboration workflow
+
+1. Read `AGENTS.md`, relevant contracts, and accepted ADRs.
+2. Work in a short-lived feature branch.
+3. Change shared contracts before producers/consumers when necessary.
+4. Use shared schemas instead of component-local copies.
+5. Open a small PR using the checklist and request the domain owner.
+6. Report tests actually executed, interface changes, assumptions, and operational/security impact.
+7. Demonstrate against the merged integration path or a contract-compliant mock.
+
+`main` should be protected. GitHub identities for CODEOWNERS still require team input.
+
+## Delivery milestones
+
+1. Milestone 0: approve architecture, contracts, ADRs, Region/budget, and toolchain.
+2. Milestone 1: one authenticated end-to-end vertical slice.
+3. Milestone 2: concurrent-user isolation, admission, reconnect, scaling, and bounded load evidence.
+4. Milestone 3: security/retention hardening, alarms/runbooks, rollback, and release quality.
+5. Milestone 4: separately approved optional extensions.
+
+## Before implementation begins
+
+The team must resolve at least:
+
+- canonical Git repository root and GitHub ownership;
+- AWS Region, account/environment layout, expected peak streams, and verified quota;
+- browser audio contract;
+- WebSocket ticket transport and lifetime;
+- state-transition and finalization ownership;
+- DynamoDB/S3 schema direction;
+- reconnect/rotation behavior;
+- sensitive-data, consent, retention, and deletion policy;
+- TypeScript/package/schema/test toolchain;
+- load-test budget and baseline measurement targets.
+
+See [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) for the review agenda and owner handoffs.
+
+## AWS references
+
+- [Amazon Transcribe streaming](https://docs.aws.amazon.com/transcribe/latest/dg/streaming.html)
+- [Amazon Transcribe streaming setup](https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html)
+- [StartStreamTranscription API](https://docs.aws.amazon.com/transcribe/latest/APIReference/API_streaming_StartStreamTranscription.html)
+- [Transcribe endpoints and quotas](https://docs.aws.amazon.com/general/latest/gr/transcribe.html)
+- [ALB target group behavior](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html)
+- [ECS connection draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-connection-draining.html)
 

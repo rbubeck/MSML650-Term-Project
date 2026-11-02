@@ -1,0 +1,47 @@
+name: Bootstrap CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile existing evaluation scripts
+        run: |
+          python -m compileall -q Scripts
+          python -m json.tool packages/contracts/session.schema.json >/dev/null
+          python -m json.tool packages/contracts/websocket.schema.json >/dev/null
+
+  bootstrap-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Verify required bootstrap documents
+        shell: bash
+        run: |
+          test -f direction_option_b.md
+          test -f ARCHITECTURE.md
+          test -f AGENTS.md
+          test -f API_CONTRACTS.md
+          test -f INTEGRATION_PLAN.md
+          test -f docs/security.md
+          test -f docs/data-model.md
+          test -f docs/streaming-protocol.md
+          test -f evaluation/README.md
+          test -f packages/contracts/openapi.yaml
+          test -f packages/contracts/session.schema.json
+          test -f packages/contracts/websocket.schema.json
+

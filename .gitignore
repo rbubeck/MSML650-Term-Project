@@ -5,6 +5,15 @@ __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
 
+# Node.js dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.npm/
+.vitest/
+
 # Secrets and credentials
 .env
 .env.*

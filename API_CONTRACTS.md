@@ -5,7 +5,7 @@ API version: `v1`
 WebSocket protocol version: `1`  
 Last reviewed: 2026-11-01
 
-This is the human-readable contract. Machine-checkable OpenAPI and runtime schemas will live in `packages/contracts` after the team selects the TypeScript workspace and schema tooling. Until then, every shape here is `PROPOSED`.
+This is the human-readable contract. ADR-008 selects Zod 4 definitions in `packages/contracts` as the canonical runtime source. The current OpenAPI and JSON Schema artifacts are bootstrap snapshots until Zod generation is implemented. Every API shape remains `PROPOSED` until its specific contract is approved.
 
 ## Conventions
 

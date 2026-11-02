@@ -11,6 +11,8 @@ ADRs begin as `Proposed`. Only the team can change them to `Accepted`. Implement
 | [005](005-multi-task-session-routing.md) | Multi-task routing and leases | Proposed |
 | [006](006-browser-audio-format.md) | Browser audio format and framing | Proposed |
 | [007](007-environments-and-deployment.md) | Environments and deployment strategy | Proposed |
+| [008](008-runtime-contract-schemas.md) | Zod as the runtime contract source | Accepted |
+| [009](009-shared-typescript-toolchain.md) | Shared TypeScript engineering toolchain | Accepted |
 
 An ADR must record review date and approvers when accepted, plus superseding ADR and migration notes when changed.
 

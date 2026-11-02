@@ -41,6 +41,9 @@ The browser never connects directly to Transcribe and never receives permanent A
 - [API and WebSocket contracts](API_CONTRACTS.md)
 - [Machine-readable contract proposals](packages/contracts/README.md)
 - [Integration plan](INTEGRATION_PLAN.md)
+- [Contribution guide](CONTRIBUTING.md)
+- [Shared engineering standards](docs/engineering-standards.md)
+- [Incremental orchestrator decision queue](docs/orchestrator/decision-queue.md)
 - [Agent and ownership rules](AGENTS.md)
 - [Security specification](docs/security.md)
 - [Data model](docs/data-model.md)
@@ -48,7 +51,7 @@ The browser never connects directly to Transcribe and never receives permanent A
 - [ADR register](docs/adr/README.md)
 - [Evaluation methodology](evaluation/README.md)
 
-All ADRs are currently proposed. They are not implementation or deployment claims.
+ADRs have individual proposed or accepted statuses in the ADR register. An accepted tooling ADR is not a claim that product features or AWS infrastructure exist.
 
 ## Intended repository layout
 
@@ -75,7 +78,7 @@ All ADRs are currently proposed. They are not implementation or deployment claim
     └── runbooks/
 ```
 
-Product directories will be scaffolded only after the team approves workspace tooling and contracts. Do not create independent component repositories or duplicate shared types.
+Product directories now contain ownership and boundary READMEs so team members can prepare focused issues and mocks. Build tooling and product code will be scaffolded only after the relevant incremental decisions are approved. Do not create independent component repositories or duplicate shared types.
 
 ## Existing evaluation prototype
 
@@ -92,11 +95,10 @@ These scripts are useful input for Person 5 but are not production services. Cur
 
 ## Prerequisites
 
-Documentation review currently requires only Git and a Markdown viewer.
+Repository development requires:
 
-Future implementation is expected to require:
-
-- a team-approved Node.js version and TypeScript workspace tool;
+- Node.js 24 LTS; npm workspaces are the accepted package/workspace tool;
+- TypeScript 6.0.x strict mode, Zod 4, Vitest 5, ESLint 10, and Prettier 3 (installed by `npm ci`);
 - Python 3 for evaluation tooling;
 - an approved AWS account/Region and AWS CLI/SSO access;
 - AWS CDK after infrastructure scaffolding;
@@ -110,23 +112,19 @@ Do not create long-lived AWS access keys for this project. Never commit credenti
 From the repository root:
 
 ```bash
+npm ci
+npm run check
 python3 -m compileall -q Scripts
 git status --short
 ```
 
-The first command checks Python syntax only; it does not run WER tests, install dependencies, contact AWS, or validate datasets.
+The npm checks validate formatting, lint, TypeScript, and currently available tests without contacting AWS. Python compilation checks syntax only; it does not run WER tests or validate datasets.
 
 ## Not-yet-implemented commands
 
-The following are planned interfaces, not currently valid commands:
+The following infrastructure commands are planned and are not currently valid:
 
 ```bash
-# Planned only — workspace/tooling requires approval
-npm install
-npm run lint
-npm test
-npm run build
-
 # Planned only — infrastructure does not exist
 npx cdk synth
 npx cdk deploy <approved-dev-stack>

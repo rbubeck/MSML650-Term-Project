@@ -1,8 +1,8 @@
 # Shared Contract Proposals
 
-Status: Proposed; not yet published as a package.
+Status: Zod 4 source-of-truth decision accepted; implementation pending TypeScript tooling.
 
-This directory is the future single source for runtime schemas and generated TypeScript/OpenAPI types. During bootstrap it contains tool-neutral machine-readable proposals:
+This workspace owns the canonical Zod runtime schemas and their inferred TypeScript types. During bootstrap it also contains tool-neutral machine-readable proposals:
 
 - `openapi.yaml`: HTTP control API surface.
 - `session.schema.json`: public session representation.
@@ -10,5 +10,5 @@ This directory is the future single source for runtime schemas and generated Typ
 
 `API_CONTRACTS.md` defines semantics not expressible in schema, including authorization, ticket consumption, lifecycle ownership, binary PCM framing, idempotency, and recovery.
 
-The team must select the TypeScript workspace, runtime validation library, OpenAPI generation direction, and compatibility tooling before implementation. Generated files must never become a second independently edited source.
+ADR-008 selects Zod 4 as the source of truth. The current OpenAPI and JSON Schema files are reviewed bootstrap snapshots, not generated artifacts yet. After generation is implemented, generated files must never become a second independently edited source.
 

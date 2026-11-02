@@ -44,7 +44,7 @@ Owners do not bypass review. Changes to another area require its owner. Cross-cu
 
 ## Coding baseline
 
-The intended product stack is TypeScript. The workspace/package manager, Node version, formatter, linter, test runner, schema library, and build tool require team approval before scaffolding.
+The accepted shared baseline is defined in `docs/engineering-standards.md` and ADR-009: Node.js 24, npm workspaces, TypeScript 6.0.x strict mode, ESM, Zod 4, Vitest 5, ESLint 10 flat config, and Prettier 3. All agents must use the root lockfile and scripts.
 
 When implementation begins:
 
@@ -58,6 +58,8 @@ When implementation begins:
 - handle SIGTERM and connection draining explicitly;
 - keep audio/transcript/token contents out of logs and metrics;
 - add unit tests for success and meaningful failure paths.
+
+Before handing off a normal TypeScript change, run `npm run check`. Tests use explicit Vitest imports and are colocated as `*.test.ts`/`*.test.tsx`; cross-package tests belong in `tests/integration/`.
 
 Existing Python evaluation code should become import-safe, reproducible, tested, and dependency-pinned when Person 5 migrates it into `evaluation/`.
 

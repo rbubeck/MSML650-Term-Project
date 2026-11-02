@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+coverage/
+.vitest/
+Datasets/
+Results/
+Scripts/
+package-lock.json
+packages/contracts/openapi.yaml
+packages/contracts/*.schema.json
+**/*.md

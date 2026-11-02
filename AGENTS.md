@@ -8,7 +8,9 @@ Build one deployable, testable, measurable Option B platform. Do not create disc
 
 ## Current phase
 
-Milestone 0 is documentation and contract review. Product implementation must not begin until the team approves the bootstrap decisions. Proposed documentation is not proof of deployed infrastructure, passing integration tests, capacity, latency, accuracy, or AWS quotas.
+The shared toolchain, Zod source-of-truth decision and ADR-006 binary audio format are accepted. The audio codec and Amazon Transcribe provider adapter are implemented and tested; a bounded manual file-to-Transcribe smoke test has succeeded in `us-east-1`. Frontend, control API, persistence, WebSocket service and AWS infrastructure are not implemented or deployed.
+
+Contributors may implement isolated local work behind accepted boundaries and contract-compliant fakes. Coupled session/auth/persistence behavior waits for ADR-001, ADR-002 and ADR-003 acceptance. AWS deployment waits for ADR-007 and explicit orchestrator authorization. Proposed documentation and a provider smoke test are not proof of end-to-end behavior, capacity, latency, accuracy, persistence, security or production readiness.
 
 ## Ownership
 
@@ -26,7 +28,7 @@ Owners do not bypass review. Changes to another area require its owner. Cross-cu
 ## Mandatory contract rules
 
 - Session states, errors, HTTP shapes, WebSocket envelopes, and telemetry keys have one canonical definition.
-- Machine-checkable schemas in `packages/contracts` will become authoritative when implemented; Markdown explains their semantics.
+- Implemented machine-checkable schemas/codecs in `packages/contracts` are authoritative for their scope; proposed OpenAPI/JSON snapshots are not yet runtime sources. Markdown explains semantics.
 - Consumers import shared types or generated clients. Do not copy/paste and independently evolve types.
 - Additive compatible changes remain in protocol/API v1. Breaking changes require a new version and a migration plan.
 - Provider-specific Amazon Transcribe payloads do not cross the application protocol boundary.
@@ -46,7 +48,7 @@ Owners do not bypass review. Changes to another area require its owner. Cross-cu
 
 The accepted shared baseline is defined in `docs/engineering-standards.md` and ADR-009: Node.js 24, npm workspaces, TypeScript 6.0.x strict mode, ESM, Zod 4, Vitest 5, ESLint 10 flat config, and Prettier 3. All agents must use the root lockfile and scripts.
 
-When implementation begins:
+For implementation:
 
 - enable TypeScript strict mode;
 - validate all network and persistence inputs at runtime;

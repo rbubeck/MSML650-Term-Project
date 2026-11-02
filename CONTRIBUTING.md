@@ -6,7 +6,7 @@ This repository is organized around five domain owners working against shared co
 
 1. Use Node.js 24 (`nvm use` reads `.nvmrc` when nvm is installed).
 2. Run `npm ci` from the repository root.
-3. Pull the latest `main` after the bootstrap PR is merged.
+3. Pull the approved integration base. Merge the current foundation PR from `nandan/dev` into protected `main` before creating long-lived team branches when possible.
 4. Read the README in the directory you will change.
 5. Read `API_CONTRACTS.md` and any relevant accepted ADR.
 6. Confirm the issue has one owner and a small, demonstrable outcome.
@@ -57,5 +57,13 @@ The technical orchestrator reviews changes to architecture, public contracts, se
 
 ## Current bootstrap rule
 
-Directory scaffolding and contract review are allowed. Product implementation begins only after the relevant decision is accepted and recorded. A proposed ADR is not an accepted decision.
+Local implementation is allowed only behind accepted boundaries or contract-compliant fakes. A proposed ADR is not an accepted decision. Specifically:
+
+- Person 1 may scaffold UI/audio preparation but must not invent WebSocket semantics.
+- Person 2 may build schemas/interfaces and fake-backed handler logic but must not finalize ticket/state semantics before ADR-001/ADR-002.
+- Person 3 may maintain the implemented Transcribe adapter and build a fake-backed protocol slice after the v1 subset is frozen.
+- Person 4 may design interfaces/CDK tests but must not deploy before ADR-007 and explicit approval.
+- Person 5 may migrate evaluation tools and build local tests but must not run paid/load tests without an approved bound.
+
+The current repository has one manually verified paid Transcribe smoke path. Normal CI/tests remain deterministic and AWS-free.
 

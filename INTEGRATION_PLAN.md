@@ -1,11 +1,25 @@
 # Integration and Delivery Plan
 
-Status: Proposed for team review  
-Last reviewed: 2026-11-01
+Status: active team plan; unresolved items remain gated by proposed ADRs
+
+Last reviewed: 2026-11-02
 
 ## Objective
 
 Deliver one contract-driven Option B system in thin, continuously integrated vertical slices. Component owners may work concurrently only after shared interfaces are approved. Mocks reproduce shared contracts and are replaced at defined checkpoints.
+
+## Current checkpoint
+
+Completed foundation:
+
+- Node.js/npm/TypeScript/Zod/Vitest/ESLint/Prettier baseline and workspace lockfile;
+- accepted binary PCM/header contract with codec and continuity tests;
+- official Amazon Transcribe SDK adapter behind `TranscriptionProvider`;
+- deterministic fake-SDK provider tests and WAVE/raw-PCM smoke runner;
+- bounded manual synthetic-audio Transcribe success in `us-east-1`;
+- development account plan enabled and a $20 monthly AWS Budget alert configured.
+
+Not complete: structured Zod HTTP/WebSocket schemas, authentication/session/persistence decisions, frontend, control API, WebSocket service, storage adapters, CDK, deployment and end-to-end tests.
 
 ## Dependency graph
 
@@ -51,7 +65,7 @@ The decision register records approvers/dates. Contract changes after freeze are
 
 ## First implementation tasks by owner
 
-These begin only after Milestone 0 approval.
+Owners may begin the isolated/fake-backed work below when its specific dependencies are accepted. Coupled or deployed work remains gated; Milestone 0 is not globally complete.
 
 ### Person 1 — frontend
 
@@ -78,9 +92,9 @@ Handoff: ticket fixtures/verification contract to Person 3; data access interfac
 1. Scaffold the Node/TypeScript service with health/readiness and graceful shutdown.
 2. Implement protocol parser/state machine and binary-frame validation without AWS first.
 3. Implement ticket verifier and session lease interfaces using Person 2/4 mocks.
-4. Implement Transcribe adapter behind a fake provider producing partial/final events.
+4. Integrate the existing `TranscriptionProvider`/Amazon Transcribe adapter into the service state machine while retaining a fake provider for tests.
 5. Add bounded queues, deduplication, checkpoint adapter, metrics hooks, and fault tests.
-6. Replace fake provider with the official SDK in approved dev/staging.
+6. Exercise the existing official SDK adapter through the approved dev deployment; do not make default tests depend on AWS.
 
 Handoff: `stream-client` contract to Person 1; ticket requirements to Person 2; checkpoint/lease calls to Person 4; instrumentation points to Person 5.
 
@@ -106,7 +120,7 @@ Handoff: metric names and instrumentation acceptance to Persons 2–4; release r
 
 ## Shared contracts package
 
-After tooling approval, `packages/contracts` contains:
+As contracts are accepted, `packages/contracts` contains:
 
 - runtime schemas and inferred TypeScript types;
 - OpenAPI source/generated artifact for HTTP v1;
@@ -135,13 +149,14 @@ Mocks must validate the same schemas and error codes. A mock-only behavior canno
 
 Hold a short checkpoint at least twice weekly while active integration is underway. Demonstrate from merged `main`, not an owner's private branch.
 
-1. Contract smoke: generated types build; HTTP and WebSocket examples validate.
-2. Local vertical slice: sample PCM → fake stream → captions → fake checkpoint → history.
-3. AWS speech slice: sample PCM → ECS/dev worker → Transcribe → checkpoint/export.
-4. Authenticated slice: Cognito sign-in → ticket → live microphone → history.
-5. Isolation slice: two users stream concurrently and cannot access each other.
-6. Failure slice: disconnect/task drain/provider/persistence failure has truthful state and retained finals.
-7. Bounded scale slice: approved N streams with admission rejects, metrics, cost record, and cleanup.
+1. Contract smoke: **partial** — binary codec builds/tests; structured HTTP/WebSocket runtime schemas remain.
+2. Provider smoke: **complete locally/manual** — sample PCM file → official SDK → Transcribe partial/final; no ECS/checkpoint/export.
+3. Local vertical slice: sample PCM → fake stream → captions → fake checkpoint → history.
+4. AWS speech slice: sample PCM → ECS/dev worker → Transcribe → checkpoint/export.
+5. Authenticated slice: Cognito sign-in → ticket → live microphone → history.
+6. Isolation slice: two users stream concurrently and cannot access each other.
+7. Failure slice: disconnect/task drain/provider/persistence failure has truthful state and retained finals.
+8. Bounded scale slice: approved N streams with admission rejects, metrics, cost record, and cleanup.
 
 At every checkpoint ask: can current merged `main` sign in, stream one versioned sample, save a transcript, and retrieve it?
 
@@ -216,14 +231,14 @@ Milestone 3 additionally requires security review, retention/deletion approval, 
 | Final transcript loss/duplicates | Conditional checkpoints and deterministic identities |
 | False performance claims | Versioned methodology and baseline evidence |
 | Sensitive content exposure | No raw audio persistence; log redaction tests; retention approval |
-| Nested/unclear repository root | Team chooses canonical Git root before workspace migration |
+| Contributor starts in the outer non-repository folder | Documentation and onboarding require the canonical `MSML650-Term-Project` root |
 
 ## Immediate team review agenda
 
-1. Confirm canonical Git repository root and GitHub handles/branch protection.
-2. Review ADRs 001–007 and resolve their evidence questions.
-3. Select Region, target peak concurrent streams, and approved AWS budget.
-4. Select TypeScript workspace/toolchain and schema/OpenAPI approach.
-5. Freeze v1 HTTP/WebSocket/audio/state contracts.
-6. Assign owners and create the Milestone 1 integration board.
+1. Merge the reviewed foundation branch and protect `main`; add team GitHub handles/CODEOWNERS.
+2. Review ADR-001, then ADR-002, then ADR-003; do not batch all decisions into one meeting.
+3. Freeze the smallest WebSocket v1 subset around accepted ADR-006 audio framing.
+4. Record target peak concurrent streams and verify the current Transcribe quota before load/deployment design.
+5. Review ADR-007 cleanup, idle-cost, account/environment and deployment authorization details.
+6. Assign Milestone 1 issues by the owner table in the root README and demonstrate twice-weekly merged checkpoints.
 

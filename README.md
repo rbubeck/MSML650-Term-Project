@@ -1,28 +1,30 @@
 # Multi-User Live Speech-to-Text Platform
 
-Status: architecture/bootstrap phase; product services are not implemented or deployed.
+Status: shared foundation and Amazon Transcribe provider slice implemented; browser application, control API, persistence, and cloud infrastructure are not yet implemented or deployed.
 
-This project is building a secure browser-based live transcription product on AWS. Multiple authenticated users will independently stream microphone audio through an application-owned WebSocket backend running on Amazon ECS/Fargate. The backend controls Amazon Transcribe Streaming connections, durable final-segment checkpoints, session lifecycle, and private transcript history.
+This repository is the canonical team workspace for a secure browser-based transcription product on AWS. The active architecture is Option B: browsers send application-framed audio to our Node.js WebSocket service on ECS/Fargate, and that service owns Amazon Transcribe Streaming connections. The browser never receives AWS credentials or connects directly to Transcribe.
 
-The source charter is [direction_option_b.md](direction_option_b.md). Proposed architecture and contracts require team approval before product feature work begins.
+The active charter is [direction_option_b.md](direction_option_b.md). The superseded direct-browser Option A brief was removed to prevent agents from implementing the wrong trust boundary; its history remains available in Git.
 
-The untracked legacy brief `speech_to_text_direction.md` describes the conflicting direct-browser Option A. It has been preserved for review but is not the active charter for this Option B bootstrap; the team should archive or clearly supersede it after confirming repository history.
+## Current verified state
 
-## MVP
+| Area | State | Evidence |
+|---|---|---|
+| Repository/toolchain | Implemented | Node.js 24, npm 11 workspaces, TypeScript 6 strict mode, ESM, Vitest 5, ESLint 10, Prettier 3 |
+| Runtime schema decision | Accepted | Zod 4 is canonical for structured network contracts; structured Zod schemas remain to be implemented |
+| Binary audio contract | Implemented and unit tested | Mono PCM signed 16-bit little-endian, 16 kHz, exact 100 ms/3,200-byte payloads plus a 16-byte application header |
+| Amazon Transcribe adapter | Implemented and unit tested | Official AWS SDK v3 behind `TranscriptionProvider`; provider payloads stay inside the adapter |
+| AWS speech smoke test | Manually verified 2026-11-02 | Synthetic 4.016-second voice file produced partial and final `en-US` results in `us-east-1` |
+| AWS development guardrail | Configured manually | Paid development account and a $20 monthly AWS Budget alert; the budget is not a hard spending cap |
+| Frontend/stream client | Not implemented | Ownership and accepted audio requirements documented |
+| Control API/auth | Not implemented | Proposed OpenAPI snapshot only; authentication and lifecycle ADRs remain open |
+| Persistence | Not implemented | Proposed data model only; no DynamoDB/S3 resources exist |
+| Deployment | Not implemented | No CDK stacks, containers, ECS service, ALB, Cognito pool, API Gateway, Lambda, DynamoDB table, S3 bucket, or Amplify app exist |
+| Evaluation/e2e | Prototype/planning only | Existing Python WER utilities are not yet a reproducible release gate |
 
-The MVP is intended to support:
+Do not interpret a successful local Transcribe smoke test as proof of browser capture, WebSockets, authentication, persistence, deployment, scalability, latency, or production readiness.
 
-- Cognito signup, login, recovery, and profile preferences;
-- live microphone capture and captions in a React application;
-- authenticated WSS audio through ALB to a Node.js/TypeScript Fargate service;
-- backend-managed Amazon Transcribe Streaming;
-- durable final transcript checkpoints and completed JSON/TXT exports;
-- owner-only history, view, rename, download, and deletion;
-- concurrent independent users with admission control and explicit failure states.
-
-Shared rooms, multiple microphones in one meeting, live speaker identity, video calling, summaries, translations, sentiment, raw-audio storage, and seamless active-socket failover are not MVP features.
-
-## Architecture summary
+## Architecture
 
 ```text
 React + AudioWorklet ──WSS──> ALB ──> ECS/Fargate streaming service
@@ -33,81 +35,65 @@ React ──HTTPS/JWT──> API Gateway ──> Lambda ──> DynamoDB + S3
          Cognito          control plane          metadata, segments, exports
 ```
 
-The browser never connects directly to Transcribe and never receives permanent AWS credentials. Continuous audio does not flow through Lambda or API Gateway WebSocket routes. See [ARCHITECTURE.md](ARCHITECTURE.md).
+Continuous audio does not pass through Lambda or API Gateway WebSocket routes. Final transcript segments, not raw microphone audio, are persisted by default. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Documentation and decisions
+## Start here
 
-- [Architecture](ARCHITECTURE.md)
-- [API and WebSocket contracts](API_CONTRACTS.md)
-- [Machine-readable contract proposals](packages/contracts/README.md)
-- [Integration plan](INTEGRATION_PLAN.md)
-- [Contribution guide](CONTRIBUTING.md)
-- [Shared engineering standards](docs/engineering-standards.md)
-- [Incremental orchestrator decision queue](docs/orchestrator/decision-queue.md)
-- [Agent and ownership rules](AGENTS.md)
-- [Security specification](docs/security.md)
-- [Data model](docs/data-model.md)
-- [Streaming protocol](docs/streaming-protocol.md)
-- [ADR register](docs/adr/README.md)
-- [Evaluation methodology](evaluation/README.md)
+Every contributor and coding agent must:
 
-ADRs have individual proposed or accepted statuses in the ADR register. An accepted tooling ADR is not a claim that product features or AWS infrastructure exist.
+1. Read [AGENTS.md](AGENTS.md), this README, and the README for the owned directory.
+2. Read [API_CONTRACTS.md](API_CONTRACTS.md), [ARCHITECTURE.md](ARCHITECTURE.md), and relevant accepted ADRs.
+3. Check the [decision queue](docs/orchestrator/decision-queue.md); do not implement a proposal as if it were accepted.
+4. Branch from the team-approved integration base and keep the PR within one owner area where possible.
+5. Import shared contracts rather than recreating wire types or audio constants.
+6. Run `npm run check` before handoff and report only tests actually run.
+7. Never deploy, create AWS resources, or run paid/load tests without the orchestrator’s explicit approval.
 
-## Intended repository layout
+The current foundation work is on `nandan/dev`. Prefer merging its reviewed foundation PR into protected `main` before teammates create long-lived feature branches. If the team temporarily branches from `nandan/dev`, rebase those branches onto `main` immediately after the foundation merge.
+
+## Ownership and immediate work
+
+| Owner | Paths | Next approved preparation | Decision gate before coupled implementation |
+|---|---|---|---|
+| Person 1 — frontend/UX | `frontend/`, `packages/stream-client/` | Scaffold React locally, build accessible mocked screens, design/test AudioWorklet resampling against shared PCM vectors | Coordinate WebSocket v1 state machine with Person 3; do not invent messages |
+| Person 2 — identity/control API | `backend/api/` | Implement Zod schemas and handler/application interfaces against fake identity/repositories | ADR-001 ticket semantics and ADR-002 lifecycle authority |
+| Person 3 — streaming/orchestration | `backend/streaming/`, streaming contracts | Maintain provider adapter; next build fake-backed WebSocket slice after contract decisions | ADR-001, ADR-002, ADR-003 and smallest WebSocket v1 freeze |
+| Person 4 — persistence/platform | `backend/persistence/`, `infrastructure/` | Refine repository interfaces and CDK design/tests without deployment | ADR-002, ADR-003 and ADR-007 acceptance; explicit deployment approval |
+| Person 5 — evaluation/quality | `evaluation/`, `tests/` | Migrate WER tools, define fixtures/telemetry/test methodology, add local integration tests | Dataset provenance, metric names, load budget and environment approval |
+
+See [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) for handoffs and merge order.
+
+## Repository map
 
 ```text
 .
-├── frontend/                 # Person 1: React UX and browser audio
+├── frontend/                 # Person 1: React UX and browser capture
 ├── backend/
-│   ├── api/                  # Person 2: HTTP control plane
-│   ├── streaming/            # Person 3: WSS and Transcribe integration
-│   └── persistence/          # Person 4: storage adapters
+│   ├── api/                  # Person 2: identity-aware HTTP control plane
+│   ├── streaming/            # Person 3: WebSocket and Transcribe integration
+│   └── persistence/          # Person 4: application storage adapters
 ├── packages/
-│   ├── contracts/            # shared runtime schemas and types
-│   └── stream-client/        # browser streaming integration
-├── infrastructure/           # Person 4: AWS CDK
-├── evaluation/               # Person 5: quality methodology/tooling
+│   ├── contracts/            # canonical schemas, types, binary codec/constants
+│   └── stream-client/        # browser-facing WebSocket abstraction
+├── infrastructure/           # Person 4: future AWS CDK
+├── evaluation/               # Person 5: reproducible quality methodology
 ├── tests/
-│   ├── integration/
-│   └── e2e/
-├── Scripts/                  # existing evaluation prototype; migration pending
-├── Datasets/                 # local/reference metadata; large audio excluded
-├── Results/                  # existing reference artifacts
-└── docs/
-    ├── adr/
-    └── runbooks/
+│   ├── integration/          # cross-component local contract tests
+│   └── e2e/                  # authorized browser/staging journeys
+├── Scripts/                  # legacy evaluation prototype; migration pending
+├── Datasets/                 # reference metadata; large audio excluded
+├── Results/                  # existing reference artifacts; not product evidence
+└── docs/                     # ADRs, security, protocol, data model, runbooks
 ```
 
-Product directories now contain ownership and boundary READMEs so team members can prepare focused issues and mocks. Build tooling and product code will be scaffolded only after the relevant incremental decisions are approved. Do not create independent component repositories or duplicate shared types.
+## Local development
 
-## Existing evaluation prototype
+Requirements:
 
-The repository currently contains Python tools that prepare AMI/LibriSpeech references and calculate word error rate:
-
-- `Scripts/prepare_ami_transcript.py`
-- `Scripts/normalize_ami_reference.py`
-- `Scripts/prepare_librispeech.py`
-- `Scripts/evaluate_wer.py`
-- `Scripts/evaluate_wer_batch.py`
-- `Scripts/evaluate_librispeech.py`
-
-These scripts are useful input for Person 5 but are not production services. Current results are reference/synthetic evaluation artifacts, not verified Amazon Transcribe accuracy measurements. Known migration work is documented in [evaluation/README.md](evaluation/README.md).
-
-## Prerequisites
-
-Repository development requires:
-
-- Node.js 24 LTS; npm workspaces are the accepted package/workspace tool;
-- TypeScript 6.0.x strict mode, Zod 4, Vitest 5, ESLint 10, and Prettier 3 (installed by `npm ci`);
-- Python 3 for evaluation tooling;
-- an approved AWS account/Region and AWS CLI/SSO access;
-- AWS CDK after infrastructure scaffolding;
-- Docker for the streaming service image;
-- access to licensed/approved evaluation audio.
-
-Do not create long-lived AWS access keys for this project. Never commit credentials, `.env` secrets, user audio, or private transcripts.
-
-## Current safe checks
+- Node.js 24 and npm 11;
+- Python 3 only for the existing evaluation prototype;
+- AWS CLI only for the optional, paid Transcribe smoke test;
+- Docker and AWS CDK later, when their implementation begins.
 
 From the repository root:
 
@@ -115,66 +101,50 @@ From the repository root:
 npm ci
 npm run check
 python3 -m compileall -q Scripts
-git status --short
 ```
 
-The npm checks validate formatting, lint, TypeScript, and currently available tests without contacting AWS. Python compilation checks syntax only; it does not run WER tests or validate datasets.
+`npm run check` formats-checks, lints, type-checks, runs deterministic tests without AWS, and builds implemented workspaces. The Python command checks syntax only.
 
-## Not-yet-implemented commands
+## Optional Amazon Transcribe smoke test
 
-The following infrastructure commands are planned and are not currently valid:
+This is manual, paid, bounded to 30 seconds, and must use synthetic or explicitly approved audio. It requires an authorized profile with `transcribe:StartStreamTranscription` in the approved Region.
 
 ```bash
-# Planned only — infrastructure does not exist
-npx cdk synth
-npx cdk deploy <approved-dev-stack>
+AWS_PROFILE=live-transcription-dev \
+AWS_REGION=us-east-1 \
+npm run transcribe:smoke --workspace @live-transcription/streaming -- \
+/absolute/path/to/mono-16khz-int16.wav
 ```
 
-No documentation should imply these work until their configuration is merged and CI proves it.
+Read [the smoke-test runbook](docs/runbooks/amazon-transcribe-smoke-test.md) first. Never commit the audio or transcript output.
 
-## Collaboration workflow
+## Open decisions blocking the first integrated slice
 
-1. Read `AGENTS.md`, relevant contracts, and accepted ADRs.
-2. Work in a short-lived feature branch.
-3. Change shared contracts before producers/consumers when necessary.
-4. Use shared schemas instead of component-local copies.
-5. Open a small PR using the checklist and request the domain owner.
-6. Report tests actually executed, interface changes, assumptions, and operational/security impact.
-7. Demonstrate against the merged integration path or a contract-compliant mock.
+Resolve these incrementally rather than in one large design pass:
 
-`main` should be protected. GitHub identities for CODEOWNERS still require team input.
+1. ADR-001: one-time WebSocket ticket transport, lifetime, consumption and reconnect renewal.
+2. ADR-002: canonical session state-transition/finalization authority.
+3. ADR-003: final-segment identity, checkpoint ordering and durable storage boundary.
+4. Freeze the smallest WebSocket v1 JSON message subset around the accepted binary audio contract.
+5. ADR-007: development stack/account layout, deployment authority, cleanup, retention and idle-cost controls.
+6. Consent, transcript retention/deletion, supported languages and regulated-data policy.
 
-## Delivery milestones
+## Documentation index
 
-1. Milestone 0: approve architecture, contracts, ADRs, Region/budget, and toolchain.
-2. Milestone 1: one authenticated end-to-end vertical slice.
-3. Milestone 2: concurrent-user isolation, admission, reconnect, scaling, and bounded load evidence.
-4. Milestone 3: security/retention hardening, alarms/runbooks, rollback, and release quality.
-5. Milestone 4: separately approved optional extensions.
+- [Architecture](ARCHITECTURE.md)
+- [API and WebSocket contracts](API_CONTRACTS.md)
+- [Integration plan](INTEGRATION_PLAN.md)
+- [Contribution workflow](CONTRIBUTING.md)
+- [Engineering standards](docs/engineering-standards.md)
+- [Decision queue](docs/orchestrator/decision-queue.md)
+- [ADR register](docs/adr/README.md)
+- [Security and privacy](docs/security.md)
+- [Proposed data model](docs/data-model.md)
+- [Streaming protocol](docs/streaming-protocol.md)
+- [Shared contracts](packages/contracts/README.md)
+- [Evaluation methodology](evaluation/README.md)
+- [Operational runbooks](docs/runbooks/README.md)
 
-## Before implementation begins
+## Non-goals for the first MVP
 
-The team must resolve at least:
-
-- canonical Git repository root and GitHub ownership;
-- AWS Region, account/environment layout, expected peak streams, and verified quota;
-- browser audio contract;
-- WebSocket ticket transport and lifetime;
-- state-transition and finalization ownership;
-- DynamoDB/S3 schema direction;
-- reconnect/rotation behavior;
-- sensitive-data, consent, retention, and deletion policy;
-- TypeScript/package/schema/test toolchain;
-- load-test budget and baseline measurement targets.
-
-See [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) for the review agenda and owner handoffs.
-
-## AWS references
-
-- [Amazon Transcribe streaming](https://docs.aws.amazon.com/transcribe/latest/dg/streaming.html)
-- [Amazon Transcribe streaming setup](https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html)
-- [StartStreamTranscription API](https://docs.aws.amazon.com/transcribe/latest/APIReference/API_streaming_StartStreamTranscription.html)
-- [Transcribe endpoints and quotas](https://docs.aws.amazon.com/general/latest/gr/transcribe.html)
-- [ALB target group behavior](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html)
-- [ECS connection draining](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-connection-draining.html)
-
+Shared meeting rooms, multiple microphones per session, speaker identity, video calling, summaries, translation, sentiment, custom model training, raw-audio storage, and seamless migration of an active WebSocket between ECS tasks are not part of the first MVP.

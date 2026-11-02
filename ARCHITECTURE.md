@@ -1,10 +1,23 @@
 # Architecture: Multi-User Live Speech-to-Text Platform
 
-Status: Proposed for team review  
-Architecture option: B — backend-mediated streaming  
-Last reviewed: 2026-11-01
+Status: target Option B architecture; foundation/provider experiment implemented, application/deployment proposed
+
+Architecture option: B — backend-mediated streaming
+Last reviewed: 2026-11-02
 
 This document describes the target architecture. It does not claim that any resource is deployed or that any performance target has been verified. Decisions marked `PROPOSED` require team approval and an accepted architecture decision record (ADR).
+
+## Implementation checkpoint
+
+Implemented locally:
+
+- shared strict TypeScript workspace/toolchain;
+- accepted binary audio codec/constants/continuity validation;
+- provider-neutral transcription interface and official Amazon Transcribe SDK adapter;
+- WAVE/raw-PCM manual smoke runner with real-time pacing and a 30-second ceiling;
+- one successful 4.016-second synthetic `en-US` Transcribe run in `us-east-1`.
+
+Not implemented or deployed: React/browser capture, Cognito, API Gateway/Lambda, WebSocket server, tickets, lifecycle/persistence adapters, DynamoDB/S3, ECR/ECS/Fargate/ALB, Amplify, CDK and end-to-end observability. All AWS boxes below remain target components.
 
 ## Goals and boundaries
 
@@ -138,7 +151,7 @@ The control API is the authority for user-initiated lifecycle operations. The st
 
 1. An AudioWorklet supplies mono floating-point samples at the browser's native rate.
 2. The stream client resamples to the approved rate and encodes signed 16-bit little-endian PCM without a WAV header.
-3. The client sends uniform binary chunks, initially proposed at 100 ms. AWS recommends real-time, uniform chunks between 50–200 ms.
+3. The client sends the ADR-006 v1 format: uniform 100 ms binary frames with 3,200 PCM bytes and a 16-byte application header.
 4. The ECS service validates sequence, size, rate, session state, and queue capacity before passing chunks to the Transcribe SDK.
 5. Provider partial results are mapped to ephemeral `partial_transcript` events.
 6. Provider final results receive a deterministic `(sessionId, streamEpoch, providerResultId)` identity and are conditionally checkpointed before or concurrently with delivery, according to ADR-003.

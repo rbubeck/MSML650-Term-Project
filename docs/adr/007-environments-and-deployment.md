@@ -7,6 +7,8 @@ Owners: Person 4 with all owners consulted
 
 The team needs reproducible infrastructure, safe collaboration, spending control, and separation between experiments and user data. The AWS Region/account layout, CI identity, and removal policies are not yet approved.
 
+As of 2026-11-02, an authorized paid development account is available, the local provider smoke test succeeded in `us-east-1`, and a $20 monthly AWS Budget alert is configured. The alert is not a hard cap and does not approve infrastructure deployment. Staging/production account layout, data residency, existing-resource isolation and ongoing idle-cost controls remain unresolved.
+
 ## Proposed decision
 
 Use AWS CDK in TypeScript under `infrastructure/`. Provide environment-specific configuration for `dev`, `staging`, and `prod`; prefer separate AWS accounts when the team's organization supports them, otherwise use strongly separated stacks, roles, domains, and data stores. CI uses GitHub OIDC and short-lived, environment-scoped deployment roles. Production requires protected approval.
@@ -29,4 +31,6 @@ CDK constructs and config need tests and review. Account bootstrap and domains/c
 ## Acceptance evidence
 
 Team records Region, account layout, target peak concurrency, current service quotas, domain/certificate plan, CI OIDC trust, budget values, retention/removal policies, rollback procedure, and an approved staging deployment demonstration.
+
+Current partial evidence: development SDK access and Transcribe connectivity in `us-east-1`. No CDK synthesis, stack deployment, quota verification, container, endpoint, cleanup or rollback demonstration exists yet.
 

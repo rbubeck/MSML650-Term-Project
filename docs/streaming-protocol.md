@@ -30,18 +30,19 @@ The server accepts no audio before `ready`. A connection has one logical session
 
 ## Audio contract
 
-Initial proposal:
+Accepted v1 audio contract:
 
 - mono;
 - signed 16-bit little-endian PCM;
 - 16,000 samples/second;
 - no WAV/container header;
-- uniform 100 ms payloads, with 50–200 ms accepted;
+- exactly 100 ms, 1,600-sample, 3,200-byte PCM payloads;
+- a 16-byte application header and exactly 3,216 total binary-message bytes;
 - silence encoded as zero-valued PCM samples.
 
 At 16 kHz mono, 100 ms is 1,600 samples or 3,200 bytes. The browser must resample its native AudioContext rate and clamp/quantize float samples correctly. AudioWorklet processing must stay off the React render path.
 
-The binary application header in `API_CONTRACTS.md` provides version, sequence, and capture position. Browser and server test vectors must prove byte order and sample conversion before integration.
+The binary application header in `API_CONTRACTS.md` provides version, flags, header length, sequence, and capture position. Sequence begins at `0` for each stream epoch. Capture position is derived from the logical-session audio sample counter and advances 100,000 microseconds per frame. The contracts package proves header byte order, exact sizes, round trips, and continuity failures. Browser tests must still prove resampling and sample conversion.
 
 ## Timing
 
@@ -55,9 +56,9 @@ Caption latency methodology must avoid subtracting unsynchronized browser/server
 
 ## Sequencing and gaps
 
-Client audio sequence increases by one for every binary frame. Server event sequence increases for every JSON event. Duplicate binary sequences are rejected; small reordering is not buffered in v1. A gap emits a warning/metric and may terminate according to approved thresholds.
+Client audio sequence starts at `0` for an epoch and increases by one for every binary frame. Server event sequence increases for every JSON event. Duplicate, missing, or reordered binary sequences are rejected; reordering is not buffered in v1.
 
-Session-relative capture position must match cumulative audio within tolerance. Large jumps, negative progression, or frames substantially faster than real time are policy errors.
+Logical-session capture position must match cumulative audio exactly between consecutive frames. Wall-clock arrival rate is a separate streaming policy; frames substantially faster than real time are policy errors.
 
 ## Backpressure
 
@@ -153,7 +154,6 @@ Application error JSON should precede a close when safe. Close reasons are short
 ## Open decisions
 
 - Final ticket transport.
-- Exact frame timestamp representation.
 - Queue and gap thresholds.
 - Heartbeat and ALB idle values.
 - Stop/finalization deadlines.

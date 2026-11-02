@@ -9,10 +9,16 @@ __pycache__/
 node_modules/
 dist/
 build/
+cdk.out/
 coverage/
 *.tsbuildinfo
 .npm/
 .vitest/
+
+# Local operating-system and editor state
+.DS_Store
+.idea/
+.vscode/
 
 # Secrets and credentials
 .env
@@ -30,6 +36,9 @@ datasets/librispeech/test_clean
 datasets/librispeech/audio/
 datasets/common_voice/clips/
 *.wav
+*.aiff
+*.pcm
+*.raw
 *.mp3
 *.flac
 *.parquet
@@ -40,6 +49,7 @@ datasets/common_voice/clips/
 # Generated or temporary results
 Results/*.json
 Results/*.log
+*.log
 
 # Explicit exclusions for capitalized dataset directories
 Datasets/AMI/Audio/

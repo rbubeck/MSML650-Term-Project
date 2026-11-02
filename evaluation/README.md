@@ -1,9 +1,27 @@
 # Evaluation, Observability, and Release Quality
 
-Status: Proposed methodology  
+Status: existing Python WER prototype plus proposed release methodology; not yet a reproducible quality gate
+
 Owner: Person 5
 
 This directory will preserve and evolve the existing WER work from `Scripts/` and `Results/`. Moving files requires a reviewed migration; bootstrap does not delete or claim new benchmark results.
+
+## Current evidence and limitations
+
+- Existing `Scripts/`, `Datasets/` metadata and `Results/` artifacts are retained for provenance.
+- CI currently compiles the Python scripts for syntax only; dependencies and executable fixtures are not pinned.
+- The shared TypeScript suite does not yet invoke the WER tools.
+- One 4.016-second synthetic macOS voice file was manually streamed through Amazon Transcribe on 2026-11-02, proving SDK connectivity and partial/final delivery only.
+- No committed result is currently a controlled Amazon Transcribe WER, browser latency, concurrency, recovery or deployed-service benchmark.
+
+## Person 5 next actions
+
+1. Inventory script inputs/outputs and preserve provenance while migrating toward `evaluation/`.
+2. Pin Python dependencies and make modules import-safe before CI execution.
+3. Define small licensed/synthetic fixtures and unit tests for normalization/alignment edge cases.
+4. Record one versioned Transcribe sample run without committing audio or sensitive transcript content.
+5. Agree telemetry event/metric names with Persons 2–4 before instrumentation or dashboards.
+6. Define the bounded cost/concurrency plan before any load test.
 
 ## Goals
 

@@ -3,9 +3,11 @@
 Status: Proposed for team review  
 API version: `v1`  
 WebSocket protocol version: `1`  
-Last reviewed: 2026-11-01
+Last reviewed: 2026-11-02
 
 This is the human-readable contract. ADR-008 selects Zod 4 definitions in `packages/contracts` as the canonical runtime source. The current OpenAPI and JSON Schema artifacts are bootstrap snapshots until Zod generation is implemented. Every API shape remains `PROPOSED` until its specific contract is approved.
+
+Exception: the ADR-006 binary PCM frame layout is accepted and implemented in `packages/contracts/src/audio-frame.ts`. The proposed JSON start/ready/session schemas must align to that fixed format; they are not independently authoritative.
 
 ## Conventions
 
@@ -399,7 +401,7 @@ Application heartbeat supplementing WebSocket ping/pong where browser APIs requi
 
 ## Binary audio frames
 
-`PROPOSED` v1 audio payload is headerless mono PCM signed 16-bit little-endian at 16,000 Hz. Each sample is two bytes. A 100 ms frame therefore contains 3,200 audio bytes.
+Accepted ADR-006 fixes the v1 audio payload as headerless mono PCM signed 16-bit little-endian at 16,000 Hz. Each sample is two bytes. Every frame contains exactly 100 ms, 1,600 samples, and 3,200 PCM bytes. A final short browser buffer is zero-padded before stop.
 
 To support sequence/gap detection without confusing provider audio with application framing, each WebSocket binary message has a compact application header:
 
@@ -408,21 +410,23 @@ To support sequence/gap detection without confusing provider audio with applicat
 | 0 | 1 | frame format version (`1`) |
 | 1 | 1 | flags (reserved, `0`) |
 | 2 | 2 | header length, unsigned big-endian (`16`) |
-| 4 | 4 | audio sequence, unsigned big-endian |
-| 8 | 8 | capture start in session-relative microseconds, unsigned big-endian |
-| 16 | N | PCM payload, signed 16-bit little-endian samples |
+| 4 | 4 | epoch-relative audio sequence, unsigned big-endian; begins at `0` |
+| 8 | 8 | logical-session sample-clock start in microseconds, unsigned big-endian |
+| 16 | 3200 | PCM payload, signed 16-bit little-endian samples |
 
-This is application framing only. The browser does not implement AWS EventStream framing. Exact integer rollover, maximum frame, tolerated gap, and whether timestamps use an audio-sample counter instead of browser elapsed time must be validated in ADR-006 and protocol tests.
+This is application framing only. The browser does not implement AWS EventStream framing. Capture time is derived from emitted audio samples, not wall-clock time. Sequence rollover is not supported within an epoch; reconnect/rotation begins a new epoch and resets the audio sequence.
 
-Initial limits proposed for review:
+Accepted v1 frame rules:
 
-- duration: 50–200 ms per frame;
-- maximum binary message: 6,416 bytes at 16 kHz (200 ms plus header);
+- duration: exactly 100 ms per frame;
+- binary message: exactly 3,216 bytes (16-byte header plus 3,200-byte PCM payload);
+- sequence: increments by exactly one;
+- capture start: increments by exactly 100,000 microseconds;
 - queue: at most 2 seconds of audio per session;
 - sequence gap: warn and record; repeated/large gaps terminate as `AUDIO_SEQUENCE_GAP`;
 - audio arriving faster than a small real-time tolerance triggers `AUDIO_RATE_EXCEEDED`.
 
-These are not performance claims and may change after browser and load tests.
+The two-second queue and real-time tolerance remain proposals for streaming-service testing; the frame format itself is fixed by ADR-006.
 
 ## Server-to-client messages
 

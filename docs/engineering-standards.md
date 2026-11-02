@@ -34,7 +34,7 @@ npm test
 npm run check
 ```
 
-Use `npm run format` to apply formatting. CI runs `npm run check` and never mutates files.
+Use `npm run format` to apply formatting. CI runs `npm run check` (format, lint, typecheck, tests, and build) and never mutates files.
 
 ## Package layout
 

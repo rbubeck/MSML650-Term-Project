@@ -1,1 +1,1 @@
-export * from './audio-frame.js';
+export * from './audio-format.js';

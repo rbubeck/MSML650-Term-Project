@@ -1,25 +1,9 @@
-# Browser Stream Client
+# Direct Transcribe Stream Client — Person 3
 
-Status: npm workspace boundary only; no stream-client implementation exists.
+Status: workspace boundary only; no direct browser protocol implementation exists.
 
-Owners: Person 1 for browser integration; Person 3 for protocol/audio requirements
+Own the browser-facing client for a direct Amazon Transcribe WebSocket. Accept PCM from Person 1, consume a signed URL from Person 2's API, encode/sign Amazon EventStream audio messages, decode transcript/exception messages, manage stop/reconnect/cancellation, and hand final results to the authenticated upload client. Expose a small UI-facing interface for connection, partial, final, save acknowledgment, and errors. Keep AWS provider wire types inside this package.
 
-This package will hide the application WebSocket protocol from React components. Its public API will expose connection state, start/stop, audio submission, partial/final captions, warnings, errors and reconnect requests without leaking AWS provider types.
+First tasks: define the reviewed interface and fake WebSocket fixtures; prove EventStream signing/framing and response decoding against official protocol vectors; add bounded queue/backpressure and cancellation tests; then integrate a real browser session only in an authorized environment. The old 16-byte application header is invalid on this path. Signed URLs are sensitive and must not be logged or cached.
 
-## Non-negotiable boundaries
-
-- import audio framing/constants from `@live-transcription/contracts`;
-- never contain AWS credentials, SigV4, Amazon EventStream or Transcribe SDK models;
-- validate JSON network messages through shared runtime schemas;
-- use bounded queues and explicit cancellation; never buffer microphone audio indefinitely;
-- distinguish partial, final-observed and durably checkpointed states;
-- keep logical session identity separate from reconnect/provider epochs.
-
-## Next actions
-
-1. Persons 1 and 3 freeze the smallest WebSocket v1 subset after ADR-001/ADR-002/ADR-003 review.
-2. Define a small UI-facing interface and state transition tests before React integration.
-3. Test against a local fake WebSocket service, including malformed messages, sequence gaps, close codes, backpressure and reconnect requests.
-4. Integrate AudioWorklet frames only after its resampler passes the shared golden vectors.
-
-Do not code reconnect/ticket behavior from proposed ADRs as if it were final.
+Protocol reference: [AWS WebSocket streaming guide](https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html).

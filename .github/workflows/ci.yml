@@ -28,11 +28,9 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           npm pkg get name --workspaces
           npm run check
-      - name: Compile evaluation prototypes and validate JSON snapshots
+      - name: Compile evaluation prototypes
         run: |
           python -m compileall -q Scripts
-          python -m json.tool packages/contracts/session.schema.json >/dev/null
-          python -m json.tool packages/contracts/websocket.schema.json >/dev/null
 
   required-structure:
     runs-on: ubuntu-latest
@@ -42,8 +40,8 @@ jobs:
       - name: Verify required project documents and configuration
         shell: bash
         run: |
-          test -f direction_option_b.md
           test -f README.md
+          test -f direction_option_a.md
           test -f ARCHITECTURE.md
           test -f AGENTS.md
           test -f API_CONTRACTS.md
@@ -52,12 +50,13 @@ jobs:
           test -f docs/security.md
           test -f docs/data-model.md
           test -f docs/streaming-protocol.md
-          test -f docs/runbooks/amazon-transcribe-smoke-test.md
+          test -f docs/adr/010-option-a-migration.md
+          test -f docs/runbooks/console-option-a-setup.md
           test -f evaluation/README.md
-          test -f packages/contracts/openapi.yaml
-          test -f packages/contracts/session.schema.json
-          test -f packages/contracts/websocket.schema.json
-          test -f packages/contracts/src/audio-frame.ts
-          test -f backend/streaming/src/aws-transcribe-provider.ts
+          test -f packages/contracts/src/audio-format.ts
+          test -f packages/stream-client/README.md
+          test -f backend/api/README.md
+          test -f backend/persistence/README.md
+          test -f infrastructure/README.md
           test -f tsconfig.base.json
           test -f tsconfig.json

@@ -16,7 +16,7 @@ Changed interfaces, schemas, states, messages, metrics, or infrastructure:
 ## Security, privacy, reliability, and cost
 
 - [ ] Authentication and ownership checks are covered where relevant.
-- [ ] No credentials, tokens, tickets, audio, private transcripts, or sensitive `.env` files are committed/logged.
+- [ ] No credentials, tokens, signed URLs, audio, private transcripts, or sensitive `.env` files are committed/logged.
 - [ ] Failure, retry, timeout, idempotency, and bounded-resource behavior are addressed.
 - [ ] AWS cost/deployment impact is described; no shared environment was changed without approval.
 

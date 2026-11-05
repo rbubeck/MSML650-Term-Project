@@ -1,28 +1,7 @@
-# Infrastructure
+# AWS Infrastructure — Console-First Guide (Person 4)
 
-Status: npm workspace boundary and proposed ADR only; no CDK application or AWS resource is defined by this repository.
+Status: planning/runbook only. No application AWS resources are defined or deployed by this repository. The historical paid account/budget report must be reverified before use.
 
-Owner: Person 4
+Use [Console setup runbook](../docs/runbooks/console-option-a-setup.md) to inventory, create (only after approval), verify, and clean up Cognito, API Gateway/Lambda, DynamoDB, S3, IAM, CloudWatch, and Budgets. There is no CDK deployment path in this Option A structure. Record resource names/IDs in private team inventory, not this repository. Keep signing permissions on the Lambda execution role; browsers receive only short-lived presigned URLs.
 
-This workspace will own AWS CDK in TypeScript for identity/control, data, streaming network/service, frontend hosting and observability. CDK must synthesize and test locally without deploying by default.
-
-## Confirmed development facts
-
-- The manually tested Region is `us-east-1`.
-- An authorized development AWS account is available.
-- A $20 monthly AWS Budget alert exists; it is not a hard cap and billing data is delayed.
-- Amazon Transcribe Streaming was manually verified from the local adapter.
-
-These facts do not accept ADR-007 or authorize resource creation. Account separation, stack naming, deletion/retention, domain/certificates, network egress, CI deploy roles and ongoing idle-cost limits remain open.
-
-## Person 4 next actions
-
-1. Lead ADR-007 review and record dev/staging/prod layout, Region, authorized deployers, removal policies and cleanup.
-2. Estimate unavoidable idle costs before choosing ALB/Fargate/NAT topology; identify existing account spend before adding resources.
-3. Scaffold CDK with synth/unit assertions only after ADR-007 acceptance.
-4. Separate ECS execution and task roles; grant the task role only required runtime actions.
-5. Define ECR, VPC/egress, ALB/WSS, ECS health/drain, log retention and scaling boundaries with Persons 3 and 5.
-6. Add Cognito/API Gateway/Lambda/DynamoDB/S3/Amplify constructs only against accepted application/data contracts.
-7. Use GitHub OIDC for CI; never create static deployment keys.
-
-No agent or contributor may run `cdk deploy`, create stacks or mutate a shared AWS environment without explicit orchestrator approval. Documentation must not publish account IDs, credentials or real resource ARNs.
+Region/data residency, consent, retention, account layout, quota, budget, deployers, and cleanup policy are `TBD`. Do not create resources or run paid tests without explicit orchestrator authorization.

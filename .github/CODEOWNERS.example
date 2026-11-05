@@ -2,15 +2,14 @@
 # GitHub does not understand Person 1/2/3 labels as reviewers.
 
 /frontend/                    @person-1-handle
-/packages/stream-client/      @person-1-handle @person-3-handle
+/packages/stream-client/      @person-3-handle @person-1-handle
 /backend/api/                 @person-2-handle
-/backend/streaming/           @person-3-handle
 /backend/persistence/         @person-4-handle
 /infrastructure/              @person-4-handle
 /evaluation/                  @person-5-handle
 /tests/e2e/                   @person-5-handle
 /packages/contracts/          @person-2-handle @person-3-handle @person-4-handle
-/ARCHITECTURE.md              @person-3-handle
+/ARCHITECTURE.md              @person-1-handle @person-2-handle @person-3-handle @person-4-handle
 /API_CONTRACTS.md             @person-2-handle @person-3-handle @person-4-handle
-/docs/adr/                    @person-3-handle
+/docs/adr/                    @person-1-handle @person-2-handle @person-3-handle @person-4-handle
 

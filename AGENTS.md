@@ -1,145 +1,38 @@
-# Engineering Agent Instructions
+# Engineering Agent Instructions — Option A
 
-These instructions apply to every human and coding agent working in this repository. Read `direction_option_b.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, and the relevant accepted ADRs before editing code.
-
-## Mission
-
-Build one deployable, testable, measurable Option B platform. Do not create disconnected demos, parallel session models, or component-local wire contracts.
+Read `direction_option_a.md`, `README.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, your area README, and accepted ADRs before editing. The active architecture is direct browser-to-Amazon Transcribe WebSocket streaming. Do not restore a backend streaming proxy or a second session/wire model.
 
 ## Current phase
 
-The shared toolchain, Zod source-of-truth decision and ADR-006 binary audio format are accepted. The audio codec and Amazon Transcribe provider adapter are implemented and tested; a bounded manual file-to-Transcribe smoke test has succeeded in `us-east-1`. Frontend, control API, persistence, WebSocket service and AWS infrastructure are not implemented or deployed.
-
-Contributors may implement isolated local work behind accepted boundaries and contract-compliant fakes. Coupled session/auth/persistence behavior waits for ADR-001, ADR-002 and ADR-003 acceptance. AWS deployment waits for ADR-007 and explicit orchestrator authorization. Proposed documentation and a provider smoke test are not proof of end-to-end behavior, capacity, latency, accuracy, persistence, security or production readiness.
+This repository is an Option A structure and implementation guide. The shared TypeScript toolchain and Zod source decision are accepted; browser app, direct stream client, API, persistence, and application AWS resources are not implemented or deployed. A historical Option B server-side provider smoke test does not verify Option A. Proposed contracts and Console steps are not runtime evidence.
 
 ## Ownership
 
-| Area | Primary owner | Paths |
-|---|---|---|
-| Frontend and browser audio UX | Person 1 | `frontend/`, `packages/stream-client/` with Person 3 review |
-| Identity and control API | Person 2 | `backend/api/` |
-| Streaming and Transcribe integration | Person 3 | `backend/streaming/`, streaming portions of contracts |
-| Persistence and infrastructure | Person 4 | `backend/persistence/`, `infrastructure/` |
-| Evaluation, observability, release quality | Person 5 | `evaluation/`, `tests/e2e/`, telemetry and runbooks |
-| Shared public contracts | Cross-owner review | `packages/contracts/`, `API_CONTRACTS.md` |
+| Owner | Paths and responsibilities |
+|---|---|
+| Person 1 | `frontend/`: UI, Cognito experience, browser capture, accessibility |
+| Person 2 | `backend/api/`: authenticated HTTP control and signing API |
+| Person 3 | `packages/stream-client/`: direct Transcribe EventStream/WebSocket protocol; streaming contracts with Person 1 |
+| Person 4 | `backend/persistence/`, `infrastructure/`: DynamoDB, S3, Lambda integration, Console-first resource guide |
+| Person 5 | `evaluation/`, `tests/`: quality, observability, e2e and release evidence |
+| Cross-owner | `packages/contracts/`, public API, lifecycle and trust-boundary decisions |
 
-Owners do not bypass review. Changes to another area require its owner. Cross-cutting changes require the affected owners and, when architectural or externally visible, an ADR or contract revision first.
+Four people may combine Persons 1 and 3. Owners do not bypass affected-owner review. Architecture, security, storage, public contract, or cost decisions require an ADR before implementation.
 
-## Mandatory contract rules
+## Mandatory boundaries
 
-- Session states, errors, HTTP shapes, WebSocket envelopes, and telemetry keys have one canonical definition.
-- Implemented machine-checkable schemas/codecs in `packages/contracts` are authoritative for their scope; proposed OpenAPI/JSON snapshots are not yet runtime sources. Markdown explains semantics.
-- Consumers import shared types or generated clients. Do not copy/paste and independently evolve types.
-- Additive compatible changes remain in protocol/API v1. Breaking changes require a new version and a migration plan.
-- Provider-specific Amazon Transcribe payloads do not cross the application protocol boundary.
-- Never accept a client-supplied `userId` as authorization evidence.
-- Partial transcripts are ephemeral. Only final segments are durable.
+- The browser streams PCM directly to Amazon Transcribe using its presigned WebSocket/EventStream protocol. API Gateway/Lambda carry control traffic and saved finals only. No application-specific PCM header or proxy WebSocket contract crosses this path.
+- Lambda signs with its runtime IAM role. The browser receives a short-lived presigned URL, never permanent AWS keys or signing credentials. A presigned URL is sensitive and replayable until expiry; it is not a one-time ticket.
+- Transcribe results reach the browser. Uploaded final text is **client supplied** and cannot be described as server-verified provider output. Partials stay ephemeral; only acknowledged finals are durable.
+- The API authenticates every operation, derives owner from validated claims, checks session ownership in authoritative storage, validates runtime inputs, and makes writes/lifecycle operations idempotent. Never trust client `userId`.
+- Zod schemas in `packages/contracts` are the planned source for structured application contracts. Provider-specific EventStream models stay inside `packages/stream-client`. Compatible additions remain v1; breaking changes need versioning and migration.
+- Raw audio, transcript text, JWTs, signed URLs, and personal data never enter logs or metrics. Metric dimensions have bounded cardinality.
 
-## Directory and change discipline
+## Working rules
 
-- Use one shared repository and short-lived branches such as `feat/frontend-*`, `feat/auth-*`, `feat/stream-*`, `feat/storage-*`, `feat/eval-*`, and `docs/architecture-*`.
-- Preserve unrelated work. Do not delete existing evaluation artifacts without an approved migration.
-- Keep PRs small. State changed interfaces, assumptions, migrations, and tests actually run.
-- A PR must not silently change another component's interface.
-- Secrets, credentials, tokens, audio, private transcripts, and environment files must never be committed.
-- Generated datasets, recordings, build outputs, and virtual environments remain untracked.
-
-## Coding baseline
-
-The accepted shared baseline is defined in `docs/engineering-standards.md` and ADR-009: Node.js 24, npm workspaces, TypeScript 6.0.x strict mode, ESM, Zod 4, Vitest 5, ESLint 10 flat config, and Prettier 3. All agents must use the root lockfile and scripts.
-
-For implementation:
-
-- enable TypeScript strict mode;
-- validate all network and persistence inputs at runtime;
-- use structured, stable error codes;
-- use dependency injection around AWS clients for contract-based tests;
-- keep AWS SDK models behind adapters;
-- make writes and lifecycle operations idempotent;
-- use bounded queues, timeouts, retries, and cancellation;
-- handle SIGTERM and connection draining explicitly;
-- keep audio/transcript/token contents out of logs and metrics;
-- add unit tests for success and meaningful failure paths.
-
-Before handing off a normal TypeScript change, run `npm run check`. Tests use explicit Vitest imports and are colocated as `*.test.ts`/`*.test.tsx`; cross-package tests belong in `tests/integration/`.
-
-Existing Python evaluation code should become import-safe, reproducible, tested, and dependency-pinned when Person 5 migrates it into `evaluation/`.
-
-## Security requirements
-
-- Authenticate and authorize every HTTP and streaming operation.
-- Verify session ownership in the authoritative data store.
-- Consume one-time tickets atomically before accepting audio.
-- Enforce allowed origins, protocol version, frame size, message rate, idle timeout, concurrency, and capacity.
-- Use least-privilege runtime roles; distinguish ECS execution from task permissions.
-- Use opaque identifiers and prevent IDOR.
-- Never log JWTs, tickets, signed URLs, raw audio, transcript text, or sensitive profile data.
-- Deny reads as soon as deletion begins, even if physical deletion is retrying.
-
-Report a suspected vulnerability privately to the team; do not place exploit details or real sensitive data in public issues.
-
-## Testing requirements
-
-Every feature must include appropriate layers:
-
-- unit tests for logic and failure handling;
-- schema/contract compatibility tests;
-- integration tests using contract-compliant mocks when AWS is unavailable;
-- ownership-isolation tests for protected data;
-- an end-to-end path when the integrated environment exists;
-- bounded load/failure tests only with an approved budget and scope.
-
-Do not claim a test was run if it was not. Do not claim AWS behavior was verified from documentation alone.
-
-## Observability
-
-Use the shared telemetry schema. New metric or event names require Person 5 review. Provisioning requires Person 4 review. Instrumentation in the streaming service requires Person 3 review.
-
-Logs are structured and privacy-safe. Metrics must have bounded cardinality: never use `sessionId`, `userId`, transcript text, ticket values, or raw error messages as metric dimensions.
-
-## Pull requests and definition of done
-
-A change is done only when:
-
-- code, tests, contracts, and documentation agree;
-- the basic failure path is covered;
-- compatibility is maintained or explicitly versioned;
-- relevant privacy-safe logs/metrics exist;
-- local checks and CI pass;
-- domain owners review it;
-- it is demonstrated against the current integration environment or documented mock.
-
-The technical orchestrator reviews changes affecting architecture, public contracts, session lifecycle, or more than one owned component.
-
-## ADR and escalation rules
-
-Create or update an ADR before implementing a decision that changes a trust boundary, public contract, persistence model, lifecycle owner, AWS service, cost profile, deployment topology, or failure/recovery guarantee.
-
-An ADR records context, decision/status, alternatives, security/cost/operational consequences, and migration impact. Proposed ADRs are not implementation authorization.
-
-Stop and request human direction when:
-
-- requirements conflict;
-- a change would spend money or mutate shared AWS infrastructure without approval;
-- data retention, consent, compliance, Region, or security requirements are unclear;
-- a breaking contract change lacks consumer and migration agreement;
-- repository ownership or overlapping edits cannot be safely resolved.
-
-## Prohibited assumptions
-
-Do not assume:
-
-- unlimited or documented-default AWS quota is available in the target account;
-- an ALB can move an active WebSocket to another task;
-- in-memory admission or connection state is globally authoritative;
-- speaker labels identify real people;
-- browser audio is already 16 kHz PCM;
-- retries are safe without idempotency;
-- `COMPLETED` is valid before checkpoints and exports are durable;
-- PII redaction is complete;
-- any not-yet-implemented command, benchmark, deployment, or SLO exists.
-
-## Documentation protocol
-
-Update documents in the same PR as the behavior they describe. Keep unresolved items visibly marked `PROPOSED`, `TBD`, or ADR status. Remove those labels only after the recorded review decision. Link contracts to accepted ADRs and include migration notes for changed behavior.
-
+- Keep short-lived branches and small PRs; preserve existing evaluation artifacts unless a reviewed migration replaces them.
+- Use Node.js 24, npm 11 workspaces, TypeScript 6 strict, ESM, Zod 4, Vitest 5, ESLint 10, and Prettier 3 as in `docs/engineering-standards.md`. Run `npm run check` before TypeScript handoff.
+- Test success and meaningful failure paths with contract-compliant fakes; normal tests do not call AWS. Add ownership isolation, duplicate upload, signing rejection, protocol failure, and privacy tests as relevant.
+- Do not claim deployed behavior from docs or mocks. Do not create/change shared AWS resources or run paid/load tests without explicit approval and a bounded plan.
+- Ask the team when consent, retention, Region, data residency, security requirements, breaking compatibility, ownership, or AWS spend is unresolved. Mark unresolved decisions `PROPOSED` or `TBD`.
+- Update docs/contracts in the same PR as behavior. State interfaces, assumptions, migration, actual checks, and affected owners.

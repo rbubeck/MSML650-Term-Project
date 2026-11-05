@@ -60,7 +60,7 @@ Keep focused unit tests beside the source as `*.test.ts` or `*.test.tsx`. Put cr
 - Use `import type` for type-only imports.
 - Use ESM `import`/`export`, not `require`/`module.exports` in product code.
 - Backend NodeNext source imports use runtime-correct `.js` specifiers. Frontend resolution may be set by its approved build tool.
-- AWS SDK and provider payloads remain behind adapters and do not enter shared application contracts.
+- Amazon Transcribe EventStream payloads remain inside the browser stream client and do not enter shared application contracts.
 
 ## Contracts and validation
 
@@ -69,7 +69,7 @@ Keep focused unit tests beside the source as `*.test.ts` or `*.test.tsx`. Put cr
 - Parse untrusted data at the boundary and pass validated domain values inward.
 - JSON Schema/OpenAPI artifacts become generated outputs once generation is implemented.
 - Breaking contracts require a version, ADR, migration, and all affected owner reviews.
-- Binary PCM has a specialized parser; Zod validates JSON/control metadata, not audio samples.
+- Shared PCM constants describe the capture target; provider EventStream framing is handled by the browser stream client. Zod validates application JSON, not audio samples.
 
 ## Testing
 

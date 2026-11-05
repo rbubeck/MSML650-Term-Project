@@ -1,19 +1,30 @@
-# Audio Transcription Testing and Evaluation
+# Multi-User Live Speech-to-Text Platform
 
-## 1. Project Overview
+Status: shared foundation and Amazon Transcribe provider slice implemented; browser application, control API, persistence, and cloud infrastructure are not yet implemented or deployed.
 
-This repository supports the testing, performance evaluation, and monitoring of an audio transcription pipeline using **Amazon Transcribe** and AWS services.
+This repository is the canonical team workspace for a secure browser-based transcription product on AWS. The active architecture is Option B: browsers send application-framed audio to our Node.js WebSocket service on ECS/Fargate, and that service owns Amazon Transcribe Streaming connections. The browser never receives AWS credentials or connects directly to Transcribe.
 
-The project prepares audio datasets and reference transcripts so that transcription outputs can be compared against known text. The resulting measurements can be used to evaluate transcription accuracy and investigate performance across different audio samples.
+The active charter is [direction_option_b.md](direction_option_b.md). The superseded direct-browser Option A brief was removed to prevent agents from implementing the wrong trust boundary; its history remains available in Git.
 
-The project currently focuses on two datasets:
+## Current verified state
 
-- **AMI Meeting Corpus:** Meeting audio and annotations used to prepare reference transcripts. This dataset can help evaluate transcription of multi-speaker conversations and overlapping speech.
-- **LibriSpeech:** English speech recordings with corresponding reference transcripts, useful for evaluating transcription accuracy on cleaner speech.
+| Area | State | Evidence |
+|---|---|---|
+| Repository/toolchain | Implemented | Node.js 24, npm 11 workspaces, TypeScript 6 strict mode, ESM, Vitest 5, ESLint 10, Prettier 3 |
+| Runtime schema decision | Accepted | Zod 4 is canonical for structured network contracts; structured Zod schemas remain to be implemented |
+| Binary audio contract | Implemented and unit tested | Mono PCM signed 16-bit little-endian, 16 kHz, exact 100 ms/3,200-byte payloads plus a 16-byte application header |
+| Amazon Transcribe adapter | Implemented and unit tested | Official AWS SDK v3 behind `TranscriptionProvider`; provider payloads stay inside the adapter |
+| AWS speech smoke test | Manually verified 2026-11-02 | Synthetic 4.016-second voice file produced partial and final `en-US` results in `us-east-1` |
+| AWS development guardrail | Configured manually | Paid development account and a $20 monthly AWS Budget alert; the budget is not a hard spending cap |
+| Frontend/stream client | Not implemented | Ownership and accepted audio requirements documented |
+| Control API/auth | Not implemented | Proposed OpenAPI snapshot only; authentication and lifecycle ADRs remain open |
+| Persistence | Not implemented | Proposed data model only; no DynamoDB/S3 resources exist |
+| Deployment | Not implemented | No CDK stacks, containers, ECS service, ALB, Cognito pool, API Gateway, Lambda, DynamoDB table, S3 bucket, or Amplify app exist |
+| Evaluation/e2e | Prototype/planning only | Existing Python WER utilities are not yet a reproducible release gate |
 
-The broader AWS workflow uses or may incorporate Amazon S3 for audio storage, Amazon Transcribe for transcription, AWS Lambda for automated processing, and Amazon CloudWatch for monitoring and performance measurements.
+Do not interpret a successful local Transcribe smoke test as proof of browser capture, WebSockets, authentication, persistence, deployment, scalability, latency, or production readiness.
 
-## 2. Repository Structure
+## Architecture
 
 ```text
 Audio_Transcription_Testing/
@@ -84,66 +95,78 @@ pip install pandas pyarrow soundfile
 
 Additional packages may be needed depending on the specific script implementation and dataset format.
 
-To record the current environment's installed packages:
-
-```bash
-pip freeze > requirements.txt
+React ──HTTPS/JWT──> API Gateway ──> Lambda ──> DynamoDB + S3
+         Cognito          control plane          metadata, segments, exports
 ```
 
-Review the generated `requirements.txt` before committing it to ensure it contains only appropriate project dependencies.
+Continuous audio does not pass through Lambda or API Gateway WebSocket routes. Final transcript segments, not raw microphone audio, are persisted by default. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## 5. Dataset Preparation
+## Start here
 
-### 5.1 AMI Meeting Corpus
+Every contributor and coding agent must:
 
-The AMI preparation workflow uses meeting audio and annotation files to create reference transcripts.
+1. Read [AGENTS.md](AGENTS.md), this README, and the README for the owned directory.
+2. Read [API_CONTRACTS.md](API_CONTRACTS.md), [ARCHITECTURE.md](ARCHITECTURE.md), and relevant accepted ADRs.
+3. Check the [decision queue](docs/orchestrator/decision-queue.md); do not implement a proposal as if it were accepted.
+4. Branch from the team-approved integration base and keep the PR within one owner area where possible.
+5. Import shared contracts rather than recreating wire types or audio constants.
+6. Run `npm run check` before handoff and report only tests actually run.
+7. Never deploy, create AWS resources, or run paid/load tests without the orchestrator’s explicit approval.
 
-Expected local files include:
+The current foundation work is on `nandan/dev`. Prefer merging its reviewed foundation PR into protected `main` before teammates create long-lived feature branches. If the team temporarily branches from `nandan/dev`, rebase those branches onto `main` immediately after the foundation merge.
 
-- Meeting audio, such as `ES2004a.Mix-Headset.wav`
-- AMI annotation XML files
-- AMI dataset metadata
+## Ownership and immediate work
 
-The preparation scripts produce the following reference artifacts:
+| Owner | Paths | Next approved preparation | Decision gate before coupled implementation |
+|---|---|---|---|
+| Person 1 — frontend/UX | `frontend/`, `packages/stream-client/` | Scaffold React locally, build accessible mocked screens, design/test AudioWorklet resampling against shared PCM vectors | Coordinate WebSocket v1 state machine with Person 3; do not invent messages |
+| Person 2 — identity/control API | `backend/api/` | Implement Zod schemas and handler/application interfaces against fake identity/repositories | ADR-001 ticket semantics and ADR-002 lifecycle authority |
+| Person 3 — streaming/orchestration | `backend/streaming/`, streaming contracts | Maintain provider adapter; next build fake-backed WebSocket slice after contract decisions | ADR-001, ADR-002, ADR-003 and smallest WebSocket v1 freeze |
+| Person 4 — persistence/platform | `backend/persistence/`, `infrastructure/` | Refine repository interfaces and CDK design/tests without deployment | ADR-002, ADR-003 and ADR-007 acceptance; explicit deployment approval |
+| Person 5 — evaluation/quality | `evaluation/`, `tests/` | Migrate WER tools, define fixtures/telemetry/test methodology, add local integration tests | Dataset provenance, metric names, load budget and environment approval |
 
-| Output | Description |
-|---|---|
-| `Results/ES2004a_reference_words.csv` | Word-level reference data prepared from AMI annotations |
-| `Results/ES2004a_reference_transcript.txt` | Reference transcript text |
-| `Results/ES2004a_reference_normalized.txt` | Normalized reference transcript for text comparison |
+See [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) for handoffs and merge order.
 
-Run the preparation script from the repository root:
+## Repository map
 
-```bash
-python Scripts/prepare_ami_transcript.py
+```text
+.
+├── frontend/                 # Person 1: React UX and browser capture
+├── backend/
+│   ├── api/                  # Person 2: identity-aware HTTP control plane
+│   ├── streaming/            # Person 3: WebSocket and Transcribe integration
+│   └── persistence/          # Person 4: application storage adapters
+├── packages/
+│   ├── contracts/            # canonical schemas, types, binary codec/constants
+│   └── stream-client/        # browser-facing WebSocket abstraction
+├── infrastructure/           # Person 4: future AWS CDK
+├── evaluation/               # Person 5: reproducible quality methodology
+├── tests/
+│   ├── integration/          # cross-component local contract tests
+│   └── e2e/                  # authorized browser/staging journeys
+├── Scripts/                  # legacy evaluation prototype; migration pending
+├── Datasets/                 # reference metadata; large audio excluded
+├── Results/                  # existing reference artifacts; not product evidence
+└── docs/                     # ADRs, security, protocol, data model, runbooks
 ```
 
-Then run the normalization script:
-
-```bash
-python Scripts/normalize_ami_reference.py
-```
-
-These commands assume the scripts use the expected relative paths and that the required dataset files are present locally.
+## Local development
 
 The current AMI preparation includes the `ES2004a` meeting sample, with approximately 2,614 words in its normalized reference transcript.
 
 ### 5.2 LibriSpeech
 
-The LibriSpeech preparation workflow extracts audio clips and reference transcripts from the dataset.
+- Node.js 24 and npm 11;
+- Python 3 only for the existing evaluation prototype;
+- AWS CLI only for the optional, paid Transcribe smoke test;
+- Docker and AWS CDK later, when their implementation begins.
 
-The prepared data includes:
-
-- WAV audio clips under `Datasets/Librispeech/audio/`
-- Dataset metadata under `Datasets/Librispeech/metadata/`
-- Reference records in `Datasets/Librispeech/transcripts/references.csv`
-
-The reference CSV contains fields such as audio filename, reference text, speaker ID, chapter ID, and sample rate.
-
-Run the preparation script from the repository root:
+From the repository root:
 
 ```bash
-python Scripts/prepare_librispeech.py
+npm ci
+npm run check
+python3 -m compileall -q Scripts
 ```
 
 The script requires the source dataset to be available locally. Consult the script for its expected input path and output behavior.

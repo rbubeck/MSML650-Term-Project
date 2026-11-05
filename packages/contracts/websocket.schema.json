@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.example.invalid/v1/websocket.schema.json",
+  "title": "WebSocketMessageV1",
+  "oneOf": [
+    {"$ref": "#/$defs/start"},
+    {"$ref": "#/$defs/stop"},
+    {"$ref": "#/$defs/ping"},
+    {"$ref": "#/$defs/ready"},
+    {"$ref": "#/$defs/partial"},
+    {"$ref": "#/$defs/final"},
+    {"$ref": "#/$defs/status"},
+    {"$ref": "#/$defs/warning"},
+    {"$ref": "#/$defs/error"}
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "required": ["type", "protocolVersion", "sessionId", "correlationId", "streamEpoch", "sequence", "sentAt"],
+      "properties": {
+        "type": {"type": "string"},
+        "protocolVersion": {"const": 1},
+        "sessionId": {"type": "string", "pattern": "^sess_[A-Za-z0-9_-]+$", "maxLength": 128},
+        "correlationId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "streamEpoch": {"type": "integer", "minimum": 0},
+        "sequence": {"type": "integer", "minimum": 1},
+        "sentAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding", "sampleRateHz", "channels", "chunkDurationMs"],
+      "properties": {
+        "encoding": {"const": "pcm_s16le"},
+        "sampleRateHz": {"const": 16000},
+        "channels": {"const": 1},
+        "chunkDurationMs": {"type": "integer", "minimum": 50, "maximum": 200}
+      }
+    },
+    "start": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "protocolVersion", "sessionId", "correlationId", "streamEpoch", "sequence", "sentAt", "audio", "lastServerSequence"],
+          "properties": {
+            "type": {"const": "start"}, "protocolVersion": {}, "sessionId": {}, "correlationId": {}, "streamEpoch": {"const": 0}, "sequence": {}, "sentAt": {},
+            "audio": {"$ref": "#/$defs/audio"},
+            "lastServerSequence": {"type": ["integer", "null"], "minimum": 1}
+          }
+        }
+      ]
+    },
+    "stop": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {
+          "type": "object",
+          "required": ["type", "lastAudioSequence", "reason"],
+          "properties": {
+            "type": {"const": "stop"},
+            "lastAudioSequence": {"type": "integer", "minimum": 0},
+            "reason": {"enum": ["user_requested"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ping": {
+      "allOf": [{"$ref": "#/$defs/envelope"}, {"type": "object", "properties": {"type": {"const": "ping"}}}],
+      "unevaluatedProperties": false
+    },
+    "ready": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {"type": "object", "required": ["type", "acceptedAudio"], "properties": {"type": {"const": "ready"}, "acceptedAudio": {"$ref": "#/$defs/audio"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "partial": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {
+          "type": "object",
+          "required": ["type", "resultId", "startMs", "endMs", "text"],
+          "properties": {
+            "type": {"const": "partial_transcript"},
+            "resultId": {"type": "string", "maxLength": 256},
+            "startMs": {"type": "integer", "minimum": 0},
+            "endMs": {"type": "integer", "minimum": 0},
+            "text": {"type": "string"},
+            "stableThroughItem": {"type": ["integer", "null"], "minimum": 0}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "final": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {
+          "type": "object",
+          "required": ["type", "segmentId", "providerResultId", "startMs", "endMs", "text", "isFinal", "persistence"],
+          "properties": {
+            "type": {"const": "final_transcript"},
+            "segmentId": {"type": "string", "maxLength": 256},
+            "providerResultId": {"type": "string", "maxLength": 256},
+            "startMs": {"type": "integer", "minimum": 0},
+            "endMs": {"type": "integer", "minimum": 0},
+            "text": {"type": "string"},
+            "isFinal": {"const": true},
+            "persistence": {"enum": ["PENDING", "CHECKPOINTED"]}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "status": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {"type": "object", "required": ["type", "status", "reason"], "properties": {"type": {"const": "status"}, "status": {"enum": ["CONNECTING", "STREAMING", "FINALIZING", "COMPLETED", "INTERRUPTED", "FAILED"]}, "reason": {"type": "string", "maxLength": 80}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "warning": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {"type": "object", "required": ["type", "code", "message", "retryable"], "properties": {"type": {"const": "warning"}, "code": {"type": "string", "maxLength": 80}, "message": {"type": "string", "maxLength": 240}, "retryable": {"type": "boolean"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "error": {
+      "allOf": [
+        {"$ref": "#/$defs/envelope"},
+        {"type": "object", "required": ["type", "code", "message", "retryable"], "properties": {"type": {"const": "error"}, "code": {"type": "string", "maxLength": 80}, "message": {"type": "string", "maxLength": 240}, "retryable": {"type": "boolean"}, "retryAfterMs": {"type": ["integer", "null"], "minimum": 0}}}
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

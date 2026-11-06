@@ -1,4 +1,4 @@
-# Evaluation and Observability — Person 5
+# Evaluation and Release Evidence — Person 5 Phase 1
 
 Status: Python evaluation scripts migrated into the shared project structure; reproducible Option A quality-gate work remains in progress.
 

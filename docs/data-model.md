@@ -1,24 +1,26 @@
-# Option A Data Model
+# Phase 1 Data Model
 
-Status: `PROPOSED`; no table, bucket, adapter, or migration exists.
+Status: minimum model for contract/repository review; no table or adapter exists.
 
-## Invariants and access
+## Invariants
 
-- Cognito `sub` is the application owner identity; Lambda derives it from verified claims.
-- DynamoDB is authoritative for session ownership, state, and acknowledged final segments. Provider events observed only in a browser are not durable.
-- Save input is client supplied. Record provenance as `client-uploaded`; provider result IDs, timings, and text are untrusted metadata.
-- Partials are never stored. Each final upload uses an idempotency key and conditional uniqueness rule. Repeated requests acknowledge the original saved record; conflicting reuse is rejected.
-- Sessions are read/listed by owner. A known foreign session ID must not reveal content or existence.
-- S3 contains private completed JSON/TXT exports assembled from acknowledged finals. The export readiness marker is set only after publication succeeds; it does not certify that the browser submitted every provider final.
-- Deletion first makes the session unreadable, then removes DynamoDB segments and S3 exports with retry/reconciliation. TTL alone is never an authorization or deletion guarantee.
+- Cognito `sub` is the owner identity and is derived from validated claims.
+- DynamoDB is authoritative for session ownership, lifecycle/version, stream epoch, and acknowledged final segments.
+- A logical session may contain multiple stream epochs.
+- Live final text and provider metadata are untrusted `client-uploaded` content.
+- Partials and raw audio are never stored.
+- Identical retries acknowledge the existing final; conflicting identity reuse is rejected.
+- Foreign session IDs do not reveal resource existence.
+- Deletion denies reads before or while record removal is retried.
 
-## Proposed records
+## Minimum records
 
-| Record | Required purpose |
+| Record | Phase 1 fields/purpose |
 |---|---|
-| Session | Opaque ID, owner, language/configuration, state/version, stream epoch, created/updated/completed times, export state |
-| Final segment | Session ID, epoch, client idempotency key, provider result ID, bounded text, relative timing, ordinal, saved timestamp, provenance |
-| Export manifest | Session ID, format, immutable S3 key/version or checksum, publish status |
-| Deletion marker | Deny reads while physical deletion retries; no transcript text |
+| Session | opaque ID, owner, title, language, state/version, current epoch, created/updated/completed timestamps |
+| Final segment | session ID, epoch, provider result ID, bounded text, relative start/end, saved timestamp, `client-uploaded` provenance |
+| Idempotency result | owner/operation key, request fingerprint, canonical result, expiry policy selected in contract review |
 
-Exact table count, keys/indexes, consistency and transaction boundaries, size limits, state transitions, retention, backups/PITR, S3 versioning, and repair policy are `TBD` and require Persons 2/4 plus privacy review. Do not treat this sketch as a deployed schema.
+Person 4 proposes the smallest table/key/index design that supports owner-scoped newest-first history and conditional final writes. Person 2 reviews transaction/state needs before creation.
+
+Exact bounds, page size, key layout, consistency choice, and cleanup behavior are finalized in the first shared contract/persistence PR. S3 exports, recorded-audio/job records, derived artifacts, retention/backups, and migrations are later designs.

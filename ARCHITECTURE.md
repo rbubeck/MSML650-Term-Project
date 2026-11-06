@@ -1,44 +1,62 @@
-# Architecture: Option A Direct Browser Streaming
+# Architecture: Option A Phase 1 Live MVP
 
-Status: target architecture for team review; no Option A application or deployment exists. Last reviewed: 2026-11-05.
+Status: target architecture; no Phase 1 application or deployment exists. Last reviewed: 2026-11-06.
 
-## Goal and boundaries
-
-Multiple authenticated users independently capture speech, see live captions, and manage their own saved transcripts. The browser connects directly to Amazon Transcribe Streaming. API Gateway/Lambda handle identity-aware control and persistence, not continuous audio. Raw microphone audio is not stored by default. Shared rooms, audio recording, speaker identity, and server-verified transcript provenance are outside this design.
+## Integrated system
 
 ```mermaid
 flowchart LR
-  U[User] --> B[Browser app and direct-stream client]
-  B -->|Sign in| C[Cognito]
-  B <-->|WSS: EventStream audio/results| T[Amazon Transcribe Streaming]
-  B -->|HTTPS + JWT: sessions, URL request, final uploads| G[API Gateway HTTP API]
+  U[User] --> B[Browser app]
+  B --> C[Cognito]
+  B <-->|WSS: PCM EventStream and results| T[Amazon Transcribe Streaming]
+  B -->|HTTPS + JWT| G[API Gateway HTTP API]
   G --> L[Lambda control API]
-  L --> D[(DynamoDB: sessions and client-uploaded finals)]
-  L --> S[(Private S3: completed exports)]
-  L -->|Presign direct WSS URL with execution role| T
-  L --> W[CloudWatch]
+  L --> D[(DynamoDB sessions and final segments)]
+  L -->|Presign short-lived WSS URL| T
+  L --> W[CloudWatch privacy-safe events]
 ```
 
-The browser obtains a short-lived presigned WebSocket URL from the authenticated API. Lambda's execution role has the required Transcribe WebSocket action. The URL can contain a credential identifier and temporary session token; the browser must never receive the secret access key or derived signing key. The entire URL is a bearer capability and must be excluded from logs, analytics, browser history, and persistent storage. AWS permits `X-Amz-Expires` of at most 300 seconds; this is the **connection-start validity**, not a guarantee of stream duration. [AWS WebSocket protocol guide](https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html)
+The live audio data plane is browser-to-Transcribe. The application control plane is browser-to-API Gateway/Lambda. No application backend proxies continuous audio.
 
-## Stream path
+## Phase 1 flow
 
-1. AudioWorklet captures native-rate browser audio. Browser code converts to mono, resamples to 16 kHz, and encodes signed 16-bit little-endian PCM. The initial target is 100 ms chunks of 3,200 PCM bytes; browser compatibility and quality still need testing.
-2. `packages/stream-client` frames PCM as Amazon EventStream audio events, handles bounded buffering/cancellation, and decodes EventStream transcript or exception messages. Lambda signs the connection URL; the browser receives no secret signing key. The browser sends **no** former 16-byte application header to Transcribe.
-3. Partial results are ephemeral UI state. Final results can be shown immediately, then submitted through the authenticated HTTP API and visibly marked saved only after acknowledgment.
-4. The API validates shape/size, derives the owner from verified identity, checks the session in DynamoDB, and idempotently writes final segments. It cannot authenticate the content's provider origin because the provider-to-browser path is outside its view.
-5. The browser requests completion only after the provider stream ends and all finals it observed have API save acknowledgments. Finalization exports those acknowledged uploads to private S3 before reporting export readiness. The API cannot prove the browser submitted every provider final; recovery after a tab crash can use only already acknowledged finals.
+1. Cognito authenticates the user.
+2. `POST /v1/sessions` creates an owned `CREATED` application session.
+3. `POST /v1/sessions/{id}/stream-url` verifies ownership/state and returns a non-cacheable, short-lived Transcribe URL plus the authorized stream epoch and PCM parameters.
+4. The browser captures microphone audio, converts it to mono 16 kHz signed 16-bit little-endian PCM, and gives 100 ms chunks to `packages/stream-client`.
+5. The stream client encodes Amazon EventStream audio frames, handles bounded buffering, and decodes partial/final transcript or exception events.
+6. The UI displays partials ephemerally. It submits finals to the authenticated segments endpoint with stable result identity and idempotency data.
+7. The UI marks a final saved only after the API conditionally writes and acknowledges it in DynamoDB.
+8. Stop ends the provider stream, waits for observed final uploads to settle, and calls `complete`.
+9. History reads the same acknowledged finals. Delete denies future reads and removes Phase 1 records.
 
-The exact final-upload shape, retry window, upload bounds, and state transitions are `PROPOSED` in [API_CONTRACTS.md](API_CONTRACTS.md) and [docs/data-model.md](docs/data-model.md); owners must review them before code.
+## One-hour logical session
 
-## Control, trust, and recovery
+Phase 1 targets at least one hour of live use. The application session survives provider reconnects:
 
-- Cognito authenticates the user; API Gateway validates the token; Lambda derives the user subject from validated claims. Client-supplied `userId` never grants access.
-- The signing endpoint checks owner, session state, issuance rate, language, format, and Region before returning a narrowly configured presigned URL. Issuance limits cannot guarantee active Transcribe concurrency: AWS does not make the URL a one-time application ticket or bind it to the DynamoDB session. The team must document replay/cost risk, verify account quotas, and use short expiry and monitoring.
-- A direct Transcribe disconnect interrupts live audio. Reconnect requests a fresh URL and starts a new provider stream epoch; lost microphone audio is not promised recoverable. Partial text is discarded. Only acknowledged finals are durable.
-- Transcribe stream-duration, account quota, and start-rate limits must be verified in the chosen Region/account. The browser must handle provider errors and bounded backpressure without silently dropping audio.
-- DynamoDB is authoritative for ownership, application session state, and saved results. S3 holds private exports. Deletion immediately denies application reads, then retryably removes content according to an approved retention policy.
+```text
+application session
+  ├── stream epoch 1
+  ├── stream epoch 2 after reconnect
+  └── one ordered set of acknowledged final segments
+```
 
-## What remains undecided
+A reconnect requests a fresh URL and increments the epoch under API control. Lost microphone audio and unacknowledged browser-only finals are not promised recoverable. The browser must surface interruption rather than silently claim continuity.
 
-`TBD`: Region/data residency; consent and retention; precise session lifecycle; final-segment identity and ordering; concurrency/admission target; expiry shorter than AWS's maximum; export retry/deletion policy; supported browsers; deployment account layout and budget. See [decision queue](docs/orchestrator/decision-queue.md). None of these are implied by the prior Option B documents.
+## Trust and durability
+
+- API Gateway validates the Cognito token; Lambda derives the owner from validated claims and checks DynamoDB ownership.
+- Lambda signs with runtime IAM credentials. The browser never receives a secret access key or derived signing key.
+- The URL is a replayable bearer capability until expiry, not a one-time ticket. The initial proposed expiry is 60 seconds and must be verified.
+- URL expiry limits connection start, not an already established stream. Stop behavior, abnormal usage, and provider limits remain separate concerns.
+- Transcribe results reach the browser. Saved live text is untrusted `client-uploaded` content.
+- Partials are not durable. Only API-acknowledged finals appear in history.
+- Raw audio, transcript text, JWTs, signed URLs, and personal data never enter routine logs or metric dimensions.
+
+## Phase 1 storage
+
+DynamoDB is authoritative for owner, session state/version, current stream epoch, and acknowledged final segments. Phase 1 does not require S3 exports or raw-audio storage.
+
+## Deferred architecture
+
+Recorded-file transcription will require a separate upload/batch path; summarization and other derived artifacts will consume saved transcripts. Neither is part of the Phase 1 runtime or contracts. S3 exports, advanced retention/backups, production environments, and production-scale admission are also deferred.

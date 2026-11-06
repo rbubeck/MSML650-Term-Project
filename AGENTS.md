@@ -1,38 +1,44 @@
-# Engineering Agent Instructions — Option A
+# Engineering Agent Instructions — Option A Phase 1
 
-Read `direction_option_a.md`, `README.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, your area README, and accepted ADRs before editing. The active architecture is direct browser-to-Amazon Transcribe WebSocket streaming. Do not restore a backend streaming proxy or a second session/wire model.
+Read `direction_option_a.md`, `README.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, `INTEGRATION_PLAN.md`, your area README, and accepted ADRs before editing.
 
-## Current phase
+## Active objective
 
-This repository is an Option A structure and implementation guide. The shared TypeScript toolchain and Zod source decision are accepted; browser app, direct stream client, API, persistence, and application AWS resources are not implemented or deployed. A historical Option B server-side provider smoke test does not verify Option A. Proposed contracts and Console steps are not runtime evidence.
+Build only the integrated authenticated live-transcription MVP defined by ADR-011: sign in, create a session, connect the browser directly to Amazon Transcribe, display captions, durably acknowledge final uploads, reopen history, and delete the session. Target at least one hour per logical session, including reconnect epochs.
+
+Do not add recorded-file upload, batch transcription, S3 exports, summarization, other derived features, shared rooms, raw-audio storage, or production-scale infrastructure in Phase 1.
 
 ## Ownership
 
-| Owner | Paths and responsibilities |
+| Owner | Phase 1 paths and deliverable |
 |---|---|
-| Person 1 | `frontend/`: UI, Cognito experience, browser capture, accessibility |
-| Person 2 | `backend/api/`: authenticated HTTP control and signing API |
-| Person 3 | `packages/stream-client/`: direct Transcribe EventStream/WebSocket protocol; streaming contracts with Person 1 |
-| Person 4 | `backend/persistence/`, `infrastructure/`: DynamoDB, S3, Lambda integration, Console-first resource guide |
-| Person 5 | `evaluation/`, `tests/`: quality, observability, e2e and release evidence |
+| Person 1 | `frontend/`: Cognito UX, capture/resampling, caption/save state, history/delete UI |
+| Person 2 | `backend/api/`: authenticated session/signing/final-save/history/completion/delete handlers |
+| Person 3 | `packages/stream-client/`: browser WebSocket/EventStream, buffering, stop/reconnect |
+| Person 4 | `backend/persistence/`, `infrastructure/`: repositories, DynamoDB, minimum approved AWS setup |
+| Person 5 | `evaluation/`, `tests/`: local integration, isolation/failure/privacy tests, one-hour evidence |
 | Cross-owner | `packages/contracts/`, public API, lifecycle and trust-boundary decisions |
 
-Four people may combine Persons 1 and 3. Owners do not bypass affected-owner review. Architecture, security, storage, public contract, or cost decisions require an ADR before implementation.
+With four people, Persons 1 and 3 may be combined. Affected-owner review remains required.
 
 ## Mandatory boundaries
 
-- The browser streams PCM directly to Amazon Transcribe using its presigned WebSocket/EventStream protocol. API Gateway/Lambda carry control traffic and saved finals only. No application-specific PCM header or proxy WebSocket contract crosses this path.
-- Lambda signs with its runtime IAM role. The browser receives a short-lived presigned URL that can contain a credential identifier and temporary session token, but never the secret access key or derived signing key. Treat the entire URL as sensitive and replayable until expiry; it is not a one-time ticket.
-- Transcribe results reach the browser. Uploaded final text is **client supplied** and cannot be described as server-verified provider output. Partials stay ephemeral; only acknowledged finals are durable.
-- The API authenticates every operation, derives owner from validated claims, checks session ownership in authoritative storage, validates runtime inputs, and makes writes/lifecycle operations idempotent. Never trust client `userId`.
-- Zod schemas in `packages/contracts` are the planned source for structured application contracts. Provider-specific EventStream models stay inside `packages/stream-client`. Compatible additions remain v1; breaking changes need versioning and migration.
-- Raw audio, transcript text, JWTs, signed URLs, and personal data never enter logs or metrics. Metric dimensions have bounded cardinality.
+- Browser PCM goes directly to Amazon Transcribe. Never build an application audio proxy or backend streaming workspace.
+- Lambda signs with its runtime IAM role and returns a sensitive, short-lived URL. Never expose secret access keys or derived signing keys.
+- Amazon EventStream models stay inside `packages/stream-client`; application JSON schemas stay in `packages/contracts`.
+- Transcribe results reach the browser. Saved live text is untrusted `client-uploaded` content; only API-acknowledged finals are durable.
+- The API validates every operation, derives owner from validated claims, verifies DynamoDB ownership/state, and applies idempotency. Never trust client `userId`.
+- One application session can contain multiple stream epochs. Do not create parallel session models for reconnect.
+- Raw audio, transcript text, JWTs, signed URLs, personal data, and unbounded identifiers never enter logs or metric dimensions.
 
 ## Working rules
 
-- Keep short-lived branches and small PRs; preserve existing evaluation artifacts unless a reviewed migration replaces them.
-- Use Node.js 24, npm 11 workspaces, TypeScript 6 strict, ESM, Zod 4, Vitest 5, ESLint 10, and Prettier 3 as in `docs/engineering-standards.md`. Run `npm run check` before TypeScript handoff.
-- Test success and meaningful failure paths with contract-compliant fakes; normal tests do not call AWS. Add ownership isolation, duplicate upload, signing rejection, protocol failure, and privacy tests as relevant.
-- Do not claim deployed behavior from docs or mocks. Do not create/change shared AWS resources or run paid/load tests without explicit approval and a bounded plan.
-- Ask the team when consent, retention, Region, data residency, security requirements, breaking compatibility, ownership, or AWS spend is unresolved. Mark unresolved decisions `PROPOSED` or `TBD`.
-- Update docs/contracts in the same PR as behavior. State interfaces, assumptions, migration, actual checks, and affected owners.
+- The shared Zod contract PR comes before independent handler/consumer shapes.
+- Build against injectable, contract-compliant fakes; normal checks do not call AWS.
+- Cover success plus meaningful failure: ownership, duplicate/conflicting upload, expired/rejected signing, protocol failure, reconnect, deletion, and privacy.
+- Use Node.js 24, npm 11 workspaces, TypeScript 6 strict, ESM, Zod 4, Vitest 5, ESLint 10, and Prettier 3. Run `npm run check` before TypeScript handoff.
+- Preserve evaluation artifacts and unrelated work. Keep PRs small and state interfaces, assumptions, actual checks, and affected owners.
+- AWS resource creation and paid/one-hour tests require explicit approval, named Region/account, cost bound, and cleanup.
+- Do not claim deployed behavior from docs, fakes, or unrelated provider experiments.
+
+Architecture, security, storage, public-contract, cost, or deferred-feature decisions require an ADR before implementation.

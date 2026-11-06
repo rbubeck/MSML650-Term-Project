@@ -1,7 +1,22 @@
-# Evaluation and Observability — Person 5
+# Evaluation and Release Evidence — Person 5 Phase 1
 
-Status: existing Python WER prototype and reference artifacts; no Option A browser or deployed benchmark exists.
+Status: historical Python WER work exists; no Phase 1 integration or browser benchmark exists.
 
-Preserve `Scripts/`, `Datasets/`, and `Results/` until a reviewed migration retains provenance. The 2026-11-02 synthetic server-side Transcribe smoke test is historical connectivity evidence only. Do not present it as a direct browser or persistence result.
+## Initial deliverable
 
-First tasks: make WER tools import-safe and dependency-pinned; define licensed/synthetic fixtures; specify browser capture-to-partial/final, final-to-save-ack, export latency, interruption, and cost measures; review privacy-safe telemetry with Persons 2–4. No server audio-receipt, ECS task, ticket, or proxy queue metric applies. Report dataset/version, browser, Region, provider settings, sample counts, exclusions, and actual tests. Never log audio, text, JWTs, or signed URLs. Paid/load runs require a bounded approved budget and scope.
+Coordinate evidence for the smallest live MVP:
+
+- shared contract examples and malformed-input tests;
+- local sign-in/session/stream/save/history/delete journey using fakes;
+- two-user ownership isolation;
+- duplicate/conflicting upload and stale-epoch behavior;
+- provider exception, disconnect/reconnect, and save failure;
+- bounded queue/memory behavior;
+- privacy-safe error/log inspection; and
+- short AWS smoke followed by one approved one-hour live run.
+
+For the one-hour run record date, browser/OS, Region, language/audio settings, reconnects, observed versus acknowledged finals, memory/queue observations, failures, and estimated Transcribe cost. Do not claim general reliability from one run.
+
+Preserve `Scripts/`, `Datasets/`, and `Results/` and report only evidence produced by the active Phase 1 path.
+
+Recorded uploads, summarization quality, load tests, production SLOs, and broad browser matrices are later work.

@@ -1,9 +1,28 @@
-# Direct Transcribe Stream Client — Person 3
+# Direct Transcribe Stream Client — Person 3 Phase 1
 
-Status: workspace boundary only; no direct browser protocol implementation exists.
+Status: workspace boundary only; no browser protocol implementation exists.
 
-Own the browser-facing client for a direct Amazon Transcribe WebSocket. Accept PCM from Person 1, consume a presigned URL from Person 2's API, encode Amazon EventStream audio messages, decode transcript/exception messages, manage stop/reconnect/cancellation, and hand final results to the authenticated upload client. Expose a small UI-facing interface for connection, partial, final, save acknowledgment, and errors. Keep AWS provider wire types inside this package. Lambda signs the connection URL; this browser package must not receive a secret access key or derived signing key.
+## Initial deliverable
 
-First tasks: define the reviewed interface and fake WebSocket fixtures; prove WebSocket-specific EventStream framing and response decoding against the official protocol guide; add bounded queue/backpressure and cancellation tests; then verify a real browser session only in an authorized environment. Do not copy the HTTP/2 per-frame signing steps into this client. The old 16-byte application header is invalid on this path. Presigned URLs are sensitive and must not be logged or cached.
+Build a browser-compatible client that:
 
-Protocol reference: [AWS WebSocket streaming guide](https://docs.aws.amazon.com/transcribe/latest/dg/streaming-setting-up.html).
+- accepts mono 16 kHz signed 16-bit PCM chunks from Person 1;
+- opens a presigned Transcribe WebSocket URL supplied by the API;
+- encodes audio and end-of-stream Amazon EventStream messages;
+- validates/decodes transcript and exception EventStream messages;
+- emits small partial, final, connection, and safe error events;
+- bounds its queue and `WebSocket.bufferedAmount` behavior;
+- supports stop, cancellation, disconnect, and a fresh-URL reconnect; and
+- never logs signed URLs, audio, transcript text, or raw provider payloads.
+
+Start with deterministic EventStream vectors and a fake WebSocket. Keep AWS provider types internal. The package receives no secret key and performs no SigV4 signing.
+
+The implementation must be browser-native. Do not introduce a Node/server streaming adapter, custom application audio header, backend audio service, or application WebSocket.
+
+## Phase 1 handoff
+
+Freeze the UI-facing input/event interface with Person 1. Co-own the HTTP/stream-result identity contract with Person 2. Provide Person 5 fixtures for partial, final, provider exception, corrupt frame, slow socket, stop, and disconnect/reconnect.
+
+## Later
+
+Recorded-file batch transcription, seamless audio replay, multi-provider support, and production browser tuning are not initial assignments.

@@ -1,5 +1,21 @@
-# End-to-End Acceptance — Person 5
+# Phase 1 End-to-End Acceptance
 
-Status: plan only; no browser or deployed Option A journey has run.
+Status: plan only; no deployed Option A journey has run.
 
-First authorized path: Cognito sign-in → create session → API-signed URL → direct browser WebSocket to Transcribe → live partial/final captions → authenticated final upload and save acknowledgment → DynamoDB history → private S3 export/download → deletion. Record that saved text is client supplied. A second path proves two-user isolation. Exercise disconnect, expired URL, duplicate upload, failed export, and privacy-safe logs. Use approved audio, account, Region, cost bound, and cleanup. Local mocks do not prove AWS behavior.
+After explicit environment and cost approval, verify:
+
+```text
+Cognito sign-in
+→ create session
+→ API-signed URL
+→ direct browser WebSocket to Transcribe
+→ partial/final captions
+→ acknowledged final saves
+→ complete
+→ DynamoDB-backed history
+→ delete and deny reread
+```
+
+Run a short smoke first. The MVP acceptance then includes one bounded one-hour live session, at least one forced reconnect/new epoch, two-user isolation, duplicate upload, rejected/expired signing, and privacy-safe logs. Record saved live text as client supplied.
+
+Recorded files, S3 exports, summaries, load tests, and production readiness are not Phase 1 acceptance criteria.

@@ -1,36 +1,47 @@
-# Project Direction — Option A
+# Project Direction — Option A Phase 1
 
-Status: active architecture charter; feature contracts and deployment settings remain `PROPOSED` or `TBD`.
+Status: active architecture and MVP charter. Detailed production, retention, recorded-upload, and derived-feature decisions remain `PROPOSED` or `TBD`.
 
-## Mission
+## Phase 1 mission
 
-Build one deployable, measurable multi-user live speech-to-text application in which authenticated browsers connect **directly** to Amazon Transcribe Streaming. Users see live captions and can manage their own saved transcripts. API Gateway/Lambda provide session management, short-lived presigned WebSocket URLs, authenticated final-result uploads, history, exports, and deletion. DynamoDB stores session metadata and acknowledged finals; private S3 stores export artifacts.
+Build one integrated authenticated live speech-to-text MVP. The browser captures microphone audio and connects directly to Amazon Transcribe Streaming. Users see live captions, acknowledged final text is saved to their account, and they can list, reopen, and delete saved transcripts.
 
-This repo currently defines the team structure and boundaries. It does not implement the application or claim a deployed resource.
+The first integrated release must demonstrate this path:
 
-## User journey
+1. Sign in with Cognito.
+2. Create an owned application session through the HTTPS API.
+3. Request a short-lived, session-authorized Transcribe WebSocket URL.
+4. Capture and convert browser audio to mono 16 kHz signed 16-bit PCM.
+5. Stream Amazon EventStream audio directly from the browser to Transcribe and render partial/final results.
+6. Upload final results through the authenticated API and show saved status only after acknowledgment.
+7. Stop and complete the session, then reopen the acknowledged transcript from history.
+8. Delete the owned session and deny subsequent reads.
 
-1. Sign in through Cognito and create an owned session through the HTTPS API.
-2. Request a session-scoped signing decision from the API; Lambda returns an approved short-lived Transcribe WebSocket URL without exposing its secret access key or derived signing key.
-3. Capture audio in the browser, convert to mono 16 kHz PCM, send Amazon EventStream audio frames directly to Transcribe, and render partial/final results.
-4. Upload final results through the authenticated API; show saved status only after durable acknowledgment. Saved text has **client-supplied provenance** because the server cannot see the provider-to-browser result path.
-5. Stop the provider stream, wait for the final results the browser observed to be acknowledged by the API, then request completion/export to private S3. List/read/download only owned content and delete according to approved retention policy.
+The target user journey is at least one hour of live transcription. A logical application session may contain multiple provider stream epochs after reconnects; acknowledged final segments remain attached to the same application session.
 
-## Boundaries
+## Phase 1 boundaries
 
-- Continuous audio does not traverse Lambda, API Gateway, DynamoDB, or S3. Raw microphone audio is not stored by default.
-- The browser owns provider protocol handling and connection recovery. The API owns authorization and application persistence. DynamoDB is canonical for session state and acknowledged saves.
-- Partials are transient. Client-uploaded finals may be lost until the API acknowledges them; no stronger durability claim is permitted.
-- Completion/export covers acknowledged uploads only. The API cannot prove that the browser submitted every provider final.
-- Presigned URLs are bearer capabilities, not one-time tickets. Their replay/cost exposure must be managed through expiry, rate/admission controls, quotas, and monitoring.
-- No speaker identity, shared rooms, raw-audio archive, server-verified transcript provenance, or production SLO is part of the initial architecture.
+- API Gateway/Lambda carry control traffic and saved final text only. Continuous audio never traverses the application backend.
+- The browser owns capture, resampling, Amazon EventStream framing/decoding, bounded buffering, stop, and reconnect behavior.
+- Lambda signs with its runtime IAM role. The browser receives a short-lived presigned URL, never a secret access key or derived signing key.
+- Partial results are ephemeral. Final text becomes durable only after the API acknowledges it.
+- Saved live text has `client-uploaded` provenance because the server cannot observe the provider-to-browser result path.
+- Cognito establishes identity. Every API operation derives the owner from validated claims and verifies session ownership in DynamoDB.
+- DynamoDB is the Phase 1 durable store for sessions and final segments.
+- Normal development and tests use fakes. Real AWS integration and the one-hour run require an approved account, Region, and cost bound.
 
-## Team and release evidence
+## Deferred until after the integrated MVP
 
-Person 1 owns UI/audio capture; Person 2 owns Cognito and control/signing API; Person 3 owns the browser direct-stream client; Person 4 owns DynamoDB, S3, Lambda integration, and Console-first AWS setup; Person 5 owns evaluation, observability, and release quality. A four-person team may combine Persons 1 and 3.
+- Recorded-file upload and batch transcription.
+- S3 transcript exports and download artifacts.
+- Summaries, action items, translations, keywords, or other derived features.
+- Shared rooms, speaker identity, raw-audio archives, server-verified live transcript provenance, and production SLOs.
+- Production-scale admission, multi-environment deployment, advanced retention/backups, and load testing.
 
-Release claims require an integrated authenticated browser-to-Transcribe demonstration, final upload/history/export/delete, two-user ownership isolation, privacy-safe logs, failure behavior, and named Region/browser/dataset/cost evidence. Mocks and historical server-side Transcribe experiments are preparation, not release evidence.
+Deferred features must not create placeholder runtime paths or competing contracts in Phase 1. They require a reviewed ADR when scheduled.
 
-## Open decisions
+## Team outcome
 
-The team must accept consent, retention/deletion, Region/data residency, session lifecycle, idempotency and final identity, signed URL policy, account quotas/admission, browser support, budget, environment layout, and deployment authorization before implementing coupled behavior or creating AWS resources. Track them in [the decision queue](docs/orchestrator/decision-queue.md).
+Person 1 owns the browser application and audio capture. Person 2 owns authenticated session/signing/save APIs. Person 3 owns the direct browser Transcribe client. Person 4 owns DynamoDB integration and the minimum approved AWS setup. Person 5 owns contract integration, end-to-end verification, privacy checks, and release evidence. With four contributors, Persons 1 and 3 may be combined.
+
+The Phase 1 handoffs and minimum acceptance checks are defined in [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md).

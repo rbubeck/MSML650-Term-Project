@@ -1,7 +1,18 @@
-# Shared Contracts
+# Shared Contracts — Phase 1
 
-Status: reusable PCM constants and Zod source-of-truth decision only. Structured Option A schemas are not implemented.
+Status: reusable PCM constants exist; Phase 1 structured Zod schemas are the first shared implementation task.
 
-`src/audio-format.ts` holds the retained mono 16 kHz PCM/100 ms target. It is **not** a WebSocket frame or a complete capture/resampler implementation. The former 16-byte proxy header/codec was removed by ADR-010.
+`src/audio-format.ts` defines the mono 16 kHz signed 16-bit PCM/100 ms capture target. It is not a WebSocket frame or resampler. Phase 1 defines no custom application audio header.
 
-Persons 2/3/4 and consumers must agree on Zod 4 schemas for HTTP requests/responses, session state, errors, and client-uploaded finals before coding independently. Generate OpenAPI/JSON Schema from accepted Zod definitions; do not hand-maintain competing snapshots. Amazon EventStream models belong inside `packages/stream-client`.
+Persons 2 and 3 co-own the initial contract PR with Persons 1/4 review. Implement and test the smallest shared schemas from `API_CONTRACTS.md`:
+
+- stable error envelope and codes;
+- session/state/page schemas;
+- create/read/list/rename session inputs and outputs;
+- stream URL response and approved audio settings;
+- final-segment upload and acknowledgment;
+- completion and deletion responses.
+
+Infer TypeScript types from Zod and validate unknown input at boundaries. Generate OpenAPI only after the subset is accepted; never hand-maintain competing snapshots. Provider EventStream models stay inside `packages/stream-client`.
+
+Recorded upload, summaries, exports, raw audio, and provider wire schemas are not Phase 1 contracts.

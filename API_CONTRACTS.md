@@ -10,7 +10,7 @@ Zod 4 definitions in `packages/contracts` will be the source of truth for struct
 - IDs and cursors are opaque. Owner mismatch should not expose another user's resource. Inputs, persisted records, and output are validated at boundaries.
 - UTC timestamps describe wall-clock events; provider-relative segment times and a logical session/stream epoch are separate.
 - Stable errors use `{ "error": { "code": "STRING_CODE", "message": "safe message" } }`. Initial codes: `UNAUTHORIZED`, `NOT_FOUND`, `INVALID_INPUT`, `STATE_CONFLICT`, `RATE_LIMITED`, `CAPACITY_LIMIT`, `SIGNING_FAILED`, `EXPORT_NOT_READY`, `INTERNAL_ERROR`. Exact status mapping is `TBD` before schema freeze.
-- A presigned URL is secret-equivalent until expiry: return it only in a non-cacheable response; never log, persist, or put it in analytics. It authorizes a Transcribe connection but is not a one-time application ticket.
+- A presigned URL is secret-equivalent until expiry: return it only in a non-cacheable response; never log, persist, or put it in analytics. It can contain an IAM credential identifier and temporary session token, but must never expose the secret access key or derived signing key. It authorizes a Transcribe connection but is not a one-time application ticket.
 - An idempotency key is required for creation and final uploads. The exact header/field, expiry, and conflict response are `TBD` for contract review.
 
 ## Proposed HTTP surface
@@ -23,7 +23,7 @@ Zod 4 definitions in `packages/contracts` will be the source of truth for struct
 | `PATCH /v1/sessions/{sessionId}` | Rename | Conditional/idempotent update |
 | `POST /v1/sessions/{sessionId}/stream-url` | Request direct Transcribe URL | Verify owner/state/admission; return short-lived `wss://` URL, expiry, approved stream parameters and epoch; `Cache-Control: no-store` |
 | `POST /v1/sessions/{sessionId}/segments` | Save final result(s) | Authenticated browser upload; validate bounds, epoch, result identity, timing and text; deduplicate; acknowledge durable save |
-| `POST /v1/sessions/{sessionId}/complete` | Request completion/export | Idempotent transition; do not report completed export until durable |
+| `POST /v1/sessions/{sessionId}/complete` | Request completion/export | Browser calls after provider stream ends and observed finals are save-acknowledged; idempotent transition; do not report completed export until durable |
 | `GET /v1/sessions/{sessionId}/download?format=txt\|json` | Download own export | Owner check; only when ready; short-lived authorized download |
 | `DELETE /v1/sessions/{sessionId}` | Delete own session | Immediately deny reads, retry physical removal |
 
@@ -31,7 +31,7 @@ The shapes, pagination limits, state names/transitions, batch size, timing rules
 
 ## Final upload trust rule
 
-A final segment may include `sessionId`, `streamEpoch`, `providerResultId`, provider-relative start/end, text, and a client-generated idempotency key. Those fields help deduplication and ordering; **none proves provider origin**. Partial results are not persisted. The UI distinguishes final observed from save acknowledged. A tab crash can lose unacknowledged finals. Export contains only acknowledged saved finals, with provenance `client-uploaded`.
+A final segment may include `sessionId`, `streamEpoch`, `providerResultId`, provider-relative start/end, text, and a client-generated idempotency key. Those fields help deduplication and ordering; **none proves provider origin**. Partial results are not persisted. The UI distinguishes final observed from save acknowledged. A tab crash can lose unacknowledged finals. Export contains only acknowledged saved finals, with provenance `client-uploaded`; completion cannot prove the browser submitted every provider final.
 
 ## Compatibility
 

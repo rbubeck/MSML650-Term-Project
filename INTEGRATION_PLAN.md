@@ -24,7 +24,7 @@ With four contributors, one person may cover Persons 1 and 3. Cross-owner review
 
 ## Acceptance checkpoints
 
-- **Repository:** all active guides and CI point to Option A; root `npm run check` passes.
+- **Repository:** all active guides point to Option A; root `npm run check` passes locally. Automated GitHub CI is currently absent and must be restored and reviewed before treating checks as a merge gate.
 - **Local contracts:** sample PCM produces decoded fake partial/final events; an authenticated fake API durably acknowledges only final uploads and rejects cross-user access. This is a future implementation checkpoint, not a current claim.
 - **AWS speech:** approved browser capture connects using a Lambda-presigned URL and receives real Transcribe partial/final events. Record browser, Region, parameters, time, and cost.
 - **Saved transcript:** final upload → DynamoDB history → durable private S3 export → authorized download → deletion. Evidence must state that saved content was client supplied.

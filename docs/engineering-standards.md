@@ -34,7 +34,7 @@ npm test
 npm run check
 ```
 
-Use `npm run format` to apply formatting. CI runs `npm run check` (format, lint, typecheck, tests, and build) and never mutates files.
+Use `npm run format` to apply formatting. The root `npm run check` command runs format, lint, typecheck, tests, and build without rewriting source. Automated GitHub CI is currently absent on this branch, so contributors must run it locally until a reviewed workflow restores enforcement.
 
 ## Package layout
 
@@ -83,7 +83,7 @@ Keep focused unit tests beside the source as `*.test.ts` or `*.test.tsx`. Put cr
 ## Formatting and linting
 
 - Prettier decides formatting for supported product/config files; do not debate formatting in reviews.
-- ESLint warnings fail CI (`--max-warnings 0`).
+- ESLint warnings fail the local `npm run lint` check (`--max-warnings 0`) and should fail any restored CI workflow.
 - Markdown and existing Python/evaluation artifacts are currently excluded from Prettier to avoid unrelated rewrites.
 - Python quality tooling will be owned and added separately by Person 5; TypeScript tooling must not rewrite Python files.
 

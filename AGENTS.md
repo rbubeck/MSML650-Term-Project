@@ -22,7 +22,7 @@ Four people may combine Persons 1 and 3. Owners do not bypass affected-owner rev
 ## Mandatory boundaries
 
 - The browser streams PCM directly to Amazon Transcribe using its presigned WebSocket/EventStream protocol. API Gateway/Lambda carry control traffic and saved finals only. No application-specific PCM header or proxy WebSocket contract crosses this path.
-- Lambda signs with its runtime IAM role. The browser receives a short-lived presigned URL, never permanent AWS keys or signing credentials. A presigned URL is sensitive and replayable until expiry; it is not a one-time ticket.
+- Lambda signs with its runtime IAM role. The browser receives a short-lived presigned URL that can contain a credential identifier and temporary session token, but never the secret access key or derived signing key. Treat the entire URL as sensitive and replayable until expiry; it is not a one-time ticket.
 - Transcribe results reach the browser. Uploaded final text is **client supplied** and cannot be described as server-verified provider output. Partials stay ephemeral; only acknowledged finals are durable.
 - The API authenticates every operation, derives owner from validated claims, checks session ownership in authoritative storage, validates runtime inputs, and makes writes/lifecycle operations idempotent. Never trust client `userId`.
 - Zod schemas in `packages/contracts` are the planned source for structured application contracts. Provider-specific EventStream models stay inside `packages/stream-client`. Compatible additions remain v1; breaking changes need versioning and migration.

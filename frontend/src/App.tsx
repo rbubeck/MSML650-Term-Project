@@ -37,6 +37,7 @@ import { config, hasCloudConfig } from './config';
 import { MicrophoneCapture } from './audio/microphone';
 import { formatClock } from './lib/viewModels';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
+import { createLocalStreamingAdapter } from './services/fakeTranscribeSocket';
 import { exportDemoTranscript, MockSessionStore } from './services/mockSessions';
 import { TeamApi } from './services/teamApi';
 
@@ -276,7 +277,7 @@ export function App() {
   const [micError, setMicError] = useState('');
   const [micChunks, setMicChunks] = useState(0);
   const [micNativeRate, setMicNativeRate] = useState(0);
-  const micRef = useRef<MicrophoneCapture | null>(null);
+  const micRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const [liveDemoCaptions, setLiveDemoCaptions] = useState<CaptionView[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [apiHealth, setApiHealth] = useState<'unknown' | 'checking' | 'reachable' | 'unavailable'>(
@@ -353,24 +354,50 @@ export function App() {
       await micRef.current?.stop();
       micRef.current = null;
       setMicStatus('idle');
-      setToast('Microphone stopped. Captured PCM was not stored or uploaded.');
+      setToast('Microphone stopped. Captured PCM was not stored or sent over the network.');
       return;
     }
     setMicStatus('requesting');
     setMicError('');
     setMicChunks(0);
-    const capture = new MicrophoneCapture(
-      () => {
-        /* No raw PCM is persisted or transmitted in this scaffold. */
-      },
-      (status) => {
+    try {
+      const onStatus = (status: { receivedChunks: number; sampleRate: number }) => {
         setMicChunks(status.receivedChunks);
         setMicNativeRate(status.sampleRate);
-      },
-    );
-    try {
-      await capture.start();
-      micRef.current = capture;
+      };
+      if (config.mode === 'mock') {
+        const adapter = createLocalStreamingAdapter(onStatus);
+        await adapter.start(selectedId, {
+          onCaption: (event) => {
+            const caption: CaptionView = {
+              id: event.resultId,
+              speaker: 'Local simulation',
+              timestampMs: event.relativeStartMs,
+              text: event.text,
+              phase: event.phase,
+            };
+            setLiveDemoCaptions((current) => [
+              ...current.filter((item) => item.id !== caption.id),
+              caption,
+            ]);
+          },
+          onFailure: (message) => {
+            setMicError(message);
+            setMicStatus('error');
+          },
+          onDisconnected: () => {
+            setMicError('The local simulated stream was interrupted.');
+            setMicStatus('error');
+          },
+        });
+        micRef.current = adapter;
+      } else {
+        const capture = new MicrophoneCapture(() => {
+          /* AWS streaming waits for an accepted API capability contract. */
+        }, onStatus);
+        await capture.start();
+        micRef.current = capture;
+      }
       setMicStatus('recording');
     } catch {
       micRef.current = null;
@@ -1017,10 +1044,10 @@ export function App() {
                   </div>
                   <h3>Streaming</h3>
                   <p>
-                    AudioWorklet is prepared. EventStream and signed connections belong exclusively
-                    to the reviewed stream-client package.
+                    AudioWorklet-to-stream-client routing is locally fake-tested. AWS mode still
+                    requires the accepted signing response from the control API.
                   </p>
-                  <span className="tiny-status warning">INTEGRATION PENDING</span>
+                  <span className="tiny-status warning">LOCAL FAKE READY</span>
                 </section>
                 <section className="panel setting-card">
                   <div className="setting-icon">

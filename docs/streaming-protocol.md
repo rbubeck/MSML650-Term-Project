@@ -1,6 +1,6 @@
 # Phase 1 Direct Transcribe Streaming Protocol
 
-Status: browser-client implementation guide. EventStream framing and fake-backed WebSocket lifecycle behavior are implemented; frontend integration and a live AWS browser test do not yet exist.
+Status: browser-client implementation guide. EventStream framing, fake-backed WebSocket lifecycle behavior, and a browser-local microphone integration path are implemented; control-API integration and a live AWS browser test do not yet exist.
 
 The application defines no custom audio WebSocket or audio header. The browser opens the short-lived `wss://transcribestreaming.<region>.amazonaws.com:8443/stream-transcription-websocket` URL returned by the API and follows Amazon's WebSocket/EventStream protocol. Do not copy the separate HTTP/2 per-frame signing procedure.
 

@@ -1,6 +1,6 @@
 # Direct Transcribe Stream Client — Person 3 Phase 1
 
-Status: protocol foundation and fake-tested WebSocket lifecycle implemented; frontend and real AWS integration remain pending.
+Status: protocol foundation, fake-tested WebSocket lifecycle, and a frontend local-simulation adapter are implemented; control-API and real AWS integration remain pending.
 
 ## Implemented in PR 1
 
@@ -27,6 +27,10 @@ Checkpoint 1 made no AWS call and did not include transport behavior. Documentat
 Defaults are a 65,536-byte `WebSocket.bufferedAmount` threshold, a 65,536-byte framed-message queue, 20 ms drain polling, a five-second connection deadline, and a five-second stop deadline. These values are bounded initial integration defaults and need browser/AWS evidence before production tuning.
 
 The package still does not request a URL, access the microphone, upload final text, or log stream content. Person 1 stops and flushes capture before calling stream `stop`; Person 2 supplies the URL and epoch; Person 1 uploads emitted finals and shows saved status only after API acknowledgment.
+
+## Implemented in checkpoint 3
+
+`frontend/src/services/directStreamAdapter.ts` connects Person 1's `MicrophoneCapture` to this package without defining an HTTP response model. Its capability provider supplies an already validated `StreamStartOptions`; the future Person 2 Zod adapter will own parsing the network response. A browser-local fake provider lets the mock UI prove microphone PCM routing and caption-state mapping while remaining clearly labeled as simulation. It performs no speech recognition, network request, persistence, or AWS call.
 
 ## Initial deliverable
 

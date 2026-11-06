@@ -1,6 +1,6 @@
 # Live Speech-to-Text Platform — Option A
 
-Status: Phase 1 architecture and team structure. The repository contains a fake-tested browser Transcribe protocol/transport package and a frontend foundation, but no integrated live journey, control API, persistence adapter, or application AWS deployment.
+Status: Phase 1 architecture and team structure. The repository contains a fake-tested browser Transcribe protocol/transport package and a local microphone-to-stream-client frontend path, but no AWS-integrated live journey, control API, persistence adapter, or application AWS deployment.
 
 The active MVP is an authenticated **live transcription** application. The browser streams microphone PCM directly to Amazon Transcribe over its presigned WebSocket/EventStream protocol. API Gateway and Lambda form a separate HTTPS control plane for sessions, URL signing, acknowledged final uploads, history, and deletion. DynamoDB stores owned sessions and acknowledged final segments.
 

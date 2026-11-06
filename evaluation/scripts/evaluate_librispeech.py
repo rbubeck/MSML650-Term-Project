@@ -6,7 +6,7 @@ import argparse
 import csv
 from pathlib import Path
 
-from evaluate_wer import align_words, normalize_text
+from .evaluate_wer import align_words, normalize_text
 
 
 def main():

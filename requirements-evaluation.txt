@@ -1,0 +1,9 @@
+# Python evaluation dependencies
+pyarrow==26.0.0
+soundfile==0.14.0
+
+# Pinned transitive dependencies
+numpy==2.5.4
+cffi==2.1.1
+pycparser==3.12
+typing_extensions==4.16.0

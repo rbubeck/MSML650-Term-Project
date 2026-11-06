@@ -20,27 +20,22 @@ sign in
 → delete session
 ```
 
-The product target is at least one hour of live transcription. Reconnects may create new provider stream epochs inside the same logical application session.
+- The Node.js 24/npm 11/TypeScript 6 strict/ESM/Zod 4/Vitest 5/ESLint 10/Prettier 3 workspace baseline exists.
+- Python word-error-rate scripts have been migrated to `evaluation/scripts/`; reference metadata and existing evaluation artifacts remain in place. See `evaluation/README.md` for evaluation details.
+- A historical local server-side Transcribe experiment succeeded in `us-east-1` on 2026-11-02. It is **not** evidence of Option A browser streaming, signing, persistence, or deployment. The Option B code has been removed; its history remains in Git.
+- A paid development account and $20 monthly AWS Budget alert were reported for that experiment. Reverify account, Region, budget, quotas, and permissions before any new AWS work. A budget alert is not a hard cost cap.
 
 ## Phase 1 owners
 
 | Area | Owner | Initial integration responsibility |
 |---|---|---|
-| `frontend/` | Person 1 | Cognito UX, microphone capture/resampling, captions, save state, history UI |
-| `packages/stream-client/` | Person 3 with Person 1 review | Browser WebSocket/EventStream client, stop/reconnect, bounded audio queue |
-| `backend/api/` | Person 2 | Authenticated sessions, presigned URL issuance, final saves, history, completion, deletion |
-| `backend/persistence/` | Person 4 with Person 2 review | Owner-scoped DynamoDB session/final repositories and deterministic fakes |
-| `infrastructure/` | Person 4 | Minimum approved Cognito/API Gateway/Lambda/DynamoDB/IAM/CloudWatch setup |
-| `packages/contracts/` | Cross-owner | Canonical Zod schemas and shared PCM constants |
-| `evaluation/`, `tests/` | Person 5 | Integration/e2e path, privacy checks, reconnect and one-hour evidence |
-
-With four contributors, one person may combine Persons 1 and 3. Shared contracts and lifecycle behavior still require affected-owner review.
-
-## Not in Phase 1
-
-Recorded-file upload/batch transcription, S3 transcript exports, summarization, action items, translations, shared rooms, raw-audio storage, and production-scale hardening are later phases. They are product direction, not current implementation assignments.
-
-## Current verified state
+| `frontend/` | Person 1 | React UI, authentication experience, microphone capture, accessible captions |
+| `packages/stream-client/` | Person 3, with Person 1 review | Browser Transcribe WebSocket client, EventStream framing/decoding, stream lifecycle, final-result handoff |
+| `backend/api/` | Person 2 | Cognito-backed HTTP API, presigned URL issuance, session ownership and lifecycle |
+| `backend/persistence/` | Person 4, with Person 2 review | DynamoDB/S3 repository boundaries, idempotency, exports, deletion |
+| `infrastructure/` | Person 4 | Console-first AWS setup, IAM, verification, cost and cleanup runbooks |
+| `packages/contracts/` | Cross-owner | Canonical Zod application schemas and reusable PCM format constants |
+| `evaluation/`, `Datasets/`, `Results/` | Person 5 | Migrated evaluation tools, reference metadata, and artifacts; do not relabel as Option A release evidence |
 
 - The shared Node.js/TypeScript/Zod/Vitest/ESLint/Prettier workspace baseline exists.
 - Reusable mono 16 kHz PCM format constants exist.

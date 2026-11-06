@@ -8,7 +8,6 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_PATH = PROJECT_ROOT / "Scripts" / "evaluate_librispeech.py"
 
 
 class TestLibriSpeechEvaluator(unittest.TestCase):
@@ -56,7 +55,7 @@ class TestLibriSpeechEvaluator(unittest.TestCase):
 
         command = [
             sys.executable,
-            str(SCRIPT_PATH),
+            "-m", "evaluation.scripts.evaluate_librispeech",
             "--references",
             str(references),
             "--hypotheses",

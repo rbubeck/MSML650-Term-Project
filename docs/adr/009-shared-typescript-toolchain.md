@@ -25,7 +25,9 @@ Use:
 - colocated `*.test.ts`/`*.test.tsx` unit tests;
 - `tests/integration` for cross-package tests and `tests/e2e` for deployed journeys.
 
-Root scripts provide `format`, `format:check`, `lint`, `typecheck`, `test`, and `check`. CI runs the non-mutating `check` command.
+Root scripts provide `format`, `format:check`, `lint`, `typecheck`, `test`, and `check`. The intended CI gate runs the non-mutating `check` command.
+
+Implementation note, 2026-11-05: the root `check` command exists, but the GitHub workflow was removed on the current branch. Automated CI enforcement is pending restoration; local checks remain required.
 
 ## Alternatives
 

@@ -11,16 +11,17 @@ This repo currently defines the team structure and boundaries. It does not imple
 ## User journey
 
 1. Sign in through Cognito and create an owned session through the HTTPS API.
-2. Request a session-scoped signing decision from the API; Lambda returns an approved short-lived Transcribe WebSocket URL without exposing IAM credentials.
+2. Request a session-scoped signing decision from the API; Lambda returns an approved short-lived Transcribe WebSocket URL without exposing its secret access key or derived signing key.
 3. Capture audio in the browser, convert to mono 16 kHz PCM, send Amazon EventStream audio frames directly to Transcribe, and render partial/final results.
 4. Upload final results through the authenticated API; show saved status only after durable acknowledgment. Saved text has **client-supplied provenance** because the server cannot see the provider-to-browser result path.
-5. Stop, complete/export acknowledged finals to private S3, list/read/download only owned content, and delete according to approved retention policy.
+5. Stop the provider stream, wait for the final results the browser observed to be acknowledged by the API, then request completion/export to private S3. List/read/download only owned content and delete according to approved retention policy.
 
 ## Boundaries
 
 - Continuous audio does not traverse Lambda, API Gateway, DynamoDB, or S3. Raw microphone audio is not stored by default.
 - The browser owns provider protocol handling and connection recovery. The API owns authorization and application persistence. DynamoDB is canonical for session state and acknowledged saves.
 - Partials are transient. Client-uploaded finals may be lost until the API acknowledges them; no stronger durability claim is permitted.
+- Completion/export covers acknowledged uploads only. The API cannot prove that the browser submitted every provider final.
 - Presigned URLs are bearer capabilities, not one-time tickets. Their replay/cost exposure must be managed through expiry, rate/admission controls, quotas, and monitoring.
 - No speaker identity, shared rooms, raw-audio archive, server-verified transcript provenance, or production SLO is part of the initial architecture.
 

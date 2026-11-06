@@ -9,7 +9,7 @@ Status: `PROPOSED`; no table, bucket, adapter, or migration exists.
 - Save input is client supplied. Record provenance as `client-uploaded`; provider result IDs, timings, and text are untrusted metadata.
 - Partials are never stored. Each final upload uses an idempotency key and conditional uniqueness rule. Repeated requests acknowledge the original saved record; conflicting reuse is rejected.
 - Sessions are read/listed by owner. A known foreign session ID must not reveal content or existence.
-- S3 contains private completed JSON/TXT exports assembled from acknowledged finals. The export readiness marker is set only after publication succeeds.
+- S3 contains private completed JSON/TXT exports assembled from acknowledged finals. The export readiness marker is set only after publication succeeds; it does not certify that the browser submitted every provider final.
 - Deletion first makes the session unreadable, then removes DynamoDB segments and S3 exports with retry/reconciliation. TTL alone is never an authorization or deletion guarantee.
 
 ## Proposed records

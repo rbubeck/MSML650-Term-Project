@@ -1,6 +1,17 @@
 # Direct Transcribe Stream Client — Person 3 Phase 1
 
-Status: workspace boundary only; no browser protocol implementation exists.
+Status: PR 1 protocol foundation implemented; WebSocket lifecycle integration is intentionally deferred.
+
+## Implemented in PR 1
+
+- browser-native AWS EventStream encoding and decoding with CRC and length validation;
+- all EventStream header value types, kept internal to this provider package;
+- Amazon Transcribe PCM `AudioEvent` and empty end-of-stream message encoding;
+- validated `TranscriptEvent` parsing into a small partial/final result model;
+- bounded, content-free provider and protocol errors; and
+- deterministic success, corrupt-frame, malformed-payload, and provider-exception tests.
+
+No AWS call, presigned URL handling, WebSocket connection, queue, retry, or UI integration is included in this PR. Documentation and mocks are not runtime evidence of a deployed Transcribe stream.
 
 ## Initial deliverable
 

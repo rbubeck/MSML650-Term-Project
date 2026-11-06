@@ -9,7 +9,7 @@ Transcribe returns partial and final results to the **browser**. The browser dis
 ## Current verified state
 
 - The Node.js 24/npm 11/TypeScript 6 strict/ESM/Zod 4/Vitest 5/ESLint 10/Prettier 3 workspace baseline exists.
-- Python word-error-rate scripts, reference metadata, and existing evaluation artifacts remain in place.
+- Python word-error-rate scripts have been migrated to `evaluation/scripts/`; reference metadata and existing evaluation artifacts remain in place. See `evaluation/README.md` for evaluation details.
 - A historical local server-side Transcribe experiment succeeded in `us-east-1` on 2026-11-02. It is **not** evidence of Option A browser streaming, signing, persistence, or deployment. The Option B code has been removed; its history remains in Git.
 - A paid development account and $20 monthly AWS Budget alert were reported for that experiment. Reverify account, Region, budget, quotas, and permissions before any new AWS work. A budget alert is not a hard cost cap.
 
@@ -23,8 +23,7 @@ Transcribe returns partial and final results to the **browser**. The browser dis
 | `backend/persistence/` | Person 4, with Person 2 review | DynamoDB/S3 repository boundaries, idempotency, exports, deletion |
 | `infrastructure/` | Person 4 | Console-first AWS setup, IAM, verification, cost and cleanup runbooks |
 | `packages/contracts/` | Cross-owner | Canonical Zod application schemas and reusable PCM format constants |
-| `evaluation/`, `tests/` | Person 5 | WER methodology, contract/e2e plans, privacy and observability checks |
-| `Scripts/`, `Datasets/`, `Results/` | Person 5 migration review | Existing evaluation work and provenance; do not delete or relabel as Option A evidence |
+| `evaluation/`, `Datasets/`, `Results/` | Person 5 | Migrated evaluation tools, reference metadata, and artifacts; do not relabel as Option A release evidence |
 
 Four people may combine Persons 1 and 3, but both responsibilities and cross-owner review still apply. See [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) for handoffs.
 

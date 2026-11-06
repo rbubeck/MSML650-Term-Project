@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = PROJECT_ROOT / "Scripts"
 
 
 class TestBatchWerCommandLine(unittest.TestCase):
@@ -45,12 +44,13 @@ class TestBatchWerCommandLine(unittest.TestCase):
         return subprocess.run(
             [
                 sys.executable,
-                str(SCRIPTS_DIR / "evaluate_wer_batch.py"),
+                "-m", "evaluation.scripts.evaluate_wer_batch",
                 "--manifest", str(manifest),
                 "--output", str(output),
             ],
             capture_output=True,
             text=True,
+            cwd=PROJECT_ROOT,
         ), output
 
     def test_aggregate_wer_uses_total_reference_words(self):

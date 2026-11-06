@@ -6,13 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Add the Scripts directory so the evaluation module can be imported.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = PROJECT_ROOT / "Scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
 
-from evaluate_wer import normalize_text, align_words
-
+from evaluation.scripts.evaluate_wer import normalize_text, align_words
 
 class TestNormalizeText(unittest.TestCase):
     """Tests for transcript text normalization."""
@@ -134,13 +130,14 @@ class TestWerCommandLine(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SCRIPTS_DIR / "evaluate_wer.py"),
+                    "-m", "evaluation.scripts.evaluate_wer",
                     "--reference", str(reference),
                     "--hypothesis", str(hypothesis),
                     "--output", str(output),
                 ],
                 capture_output=True,
                 text=True,
+                cwd=PROJECT_ROOT,
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -172,13 +169,14 @@ class TestWerCommandLine(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SCRIPTS_DIR / "evaluate_wer.py"),
+                    "-m", "evaluation.scripts.evaluate_wer",
                     "--reference", str(reference),
                     "--hypothesis", str(hypothesis),
                     "--output", str(output),
                 ],
                 capture_output=True,
                 text=True,
+                cwd=PROJECT_ROOT,
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -200,12 +198,13 @@ class TestWerCommandLine(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SCRIPTS_DIR / "evaluate_wer.py"),
+                    "-m", "evaluation.scripts.evaluate_wer",
                     "--reference", str(temp_path / "missing.txt"),
                     "--hypothesis", str(hypothesis),
                 ],
                 capture_output=True,
                 text=True,
+                cwd=PROJECT_ROOT,
             )
 
             self.assertNotEqual(result.returncode, 0)
@@ -224,12 +223,13 @@ class TestWerCommandLine(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SCRIPTS_DIR / "evaluate_wer.py"),
+                    "-m", "evaluation.scripts.evaluate_wer",
                     "--reference", str(reference),
                     "--hypothesis", str(hypothesis),
                 ],
                 capture_output=True,
                 text=True,
+                cwd=PROJECT_ROOT,
             )
 
             self.assertNotEqual(result.returncode, 0)

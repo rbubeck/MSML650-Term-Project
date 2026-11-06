@@ -1,6 +1,6 @@
 # Shared Contracts — Phase 1
 
-Status: reusable PCM constants exist; Phase 1 structured Zod schemas are the first shared implementation task.
+Status: reusable PCM constants exist; the first Phase 1 Zod schemas (error envelope, session) are drafted for review and not yet accepted by the team. The remaining schemas are still to do. See [Progress and change log](#progress-and-change-log).
 
 `src/audio-format.ts` defines the mono 16 kHz signed 16-bit PCM/100 ms capture target. It is not a WebSocket frame or resampler. Phase 1 defines no custom application audio header.
 
@@ -16,3 +16,30 @@ Persons 2 and 3 co-own the initial contract PR with Persons 1/4 review. Implemen
 Infer TypeScript types from Zod and validate unknown input at boundaries. Generate OpenAPI only after the subset is accepted; never hand-maintain competing snapshots. Provider EventStream models stay inside `packages/stream-client`.
 
 Recorded upload, summaries, exports, raw audio, and provider wire schemas are not Phase 1 contracts.
+
+## Progress and change log
+
+Update this section whenever a schema is added, changed, or accepted. Schemas marked `DRAFT` are proposals for contract review, not accepted contracts. Bounds marked as placeholders are not agreed values.
+
+| Schema | File | Status | Notes |
+|---|---|---|---|
+| PCM audio constants | `src/audio-format.ts` | Existing | Unchanged. |
+| Error envelope and codes | `src/errors.ts` | `DRAFT` | `{ error: { code, message } }`, the nine documented codes, `createErrorEnvelope` helper. Message capped at 200 characters (placeholder). HTTP status mapping is intentionally not defined here. |
+| Session, create request, list query, page | `src/session.ts` | `DRAFT` | States from ADR-011 (`CREATED`, `STREAMING`, `COMPLETED`, `DELETING`, `FAILED`). Create request never accepts an owner or state. Placeholder bounds: title 120 characters, ID 128, page size default 20 and max 50, cursor 512. Language is validated by shape only; the approved list is still TBD. |
+| Stream URL response and audio settings | — | To do | Expiry starts at the proposed 60 seconds (decision queue blocker 3). |
+| Final-segment upload and acknowledgment | — | To do | Needs the idempotency key transport and text/batch bounds (decision queue blocker 4). |
+| Completion and deletion responses | — | To do | |
+| Rename session | — | Open | Not in the ADR-011 journey; confirm whether it is in Phase 1 before adding. |
+
+### Design notes
+
+- Object schemas use `z.strictObject`, so unknown fields are rejected. This keeps client-supplied `userId`, `owner` or `state` out of requests. It also means an older client would reject a response that gains a new field; review this against the "additive changes stay in v1" rule in `API_CONTRACTS.md`.
+- The public session shape omits the owner identity and the internal version counter. The owner comes from validated Cognito claims, and the version is a persistence concern for review with Person 4.
+- `completedAt` is omitted, not `null`, until a session completes. Reconsider if consumers prefer `null`.
+
+### Change history
+
+| Date | Change |
+|---|---|
+| 2026-11-06 | Added draft error envelope schema and tests. |
+| 2026-11-06 | Added draft session, create-request, list-query and page schemas and tests. |

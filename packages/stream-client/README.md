@@ -1,58 +1,125 @@
-# Direct Transcribe Stream Client — Person 3 Phase 1
+# Direct Amazon Transcribe Stream Client — Person 3 Phase 1
 
-Status: protocol foundation, fake-tested WebSocket lifecycle, and a frontend local-simulation adapter are implemented; control-API and real AWS integration remain pending.
+Status: the browser EventStream protocol, bounded WebSocket lifecycle, and local frontend microphone integration are implemented and fake-tested. The control-API capability parser and first real AWS browser stream remain pending.
 
-## Implemented in PR 1
+## Architecture boundary
 
-- browser-native AWS EventStream encoding and decoding with CRC and length validation;
-- all EventStream header value types, kept internal to this provider package;
-- Amazon Transcribe PCM `AudioEvent` and empty end-of-stream message encoding;
-- validated `TranscriptEvent` parsing into a small partial/final result model;
-- bounded, content-free provider and protocol errors; and
-- deterministic success, corrupt-frame, malformed-payload, and provider-exception tests.
+This package owns the direct browser-to-Amazon Transcribe data plane:
 
-Checkpoint 1 made no AWS call and did not include transport behavior. Documentation and mocks are not runtime evidence of a deployed Transcribe stream.
+```text
+Person 1 MicrophoneCapture
+  → mono 16 kHz signed 16-bit little-endian PCM
+  → TranscribeStreamClient
+  → Amazon EventStream audio frames
+  → supplied presigned Transcribe WebSocket URL
+  → partial/final provider results back to the browser
+```
 
-## Implemented in checkpoint 2
+It does not access the microphone, request or sign a URL, call the application API, upload final text, persist transcripts, or determine whether a final result was durably saved. It never receives an AWS secret key or derived signing key. API Gateway/Lambda remain the control plane and do not proxy continuous audio.
 
-- `TranscribeStreamClient.start({ url, streamEpoch })` opens only a supplied secure WebSocket URL;
-- `sendAudio` frames PCM and either sends or places it in a bounded queue;
-- slow-socket overflow is surfaced and terminated instead of silently dropping audio;
-- partial/final callbacks include the authorized stream epoch;
-- corrupt messages, provider exceptions, connection failures, and unexpected disconnects become safe errors;
-- `stop` drains accepted frames, sends the empty end event, and uses a bounded terminal-result deadline;
-- `cancel` closes immediately without claiming a graceful provider stop; and
-- a later reconnect uses a new `start` call, URL, and epoch while stale-socket events are ignored.
+## Current implementation
 
-Defaults are a 65,536-byte `WebSocket.bufferedAmount` threshold, a 65,536-byte framed-message queue, 20 ms drain polling, a five-second connection deadline, and a five-second stop deadline. These values are bounded initial integration defaults and need browser/AWS evidence before production tuning.
+The package currently provides:
 
-The package still does not request a URL, access the microphone, upload final text, or log stream content. Person 1 stops and flushes capture before calling stream `stop`; Person 2 supplies the URL and epoch; Person 1 uploads emitted finals and shows saved status only after API acknowledgment.
+- browser-native AWS EventStream encoding and decoding;
+- standard CRC32, prelude/message CRC validation, length validation, bounded incoming messages, and strict header parsing;
+- Amazon Transcribe `AudioEvent` encoding for PCM and the empty end-of-stream message;
+- validated `TranscriptEvent` parsing into small partial/final result objects;
+- safe provider-exception mapping without exposing raw response bodies;
+- `TranscribeStreamClient.start({ url, streamEpoch })` for a supplied secure WebSocket capability;
+- bounded application queue and `WebSocket.bufferedAmount` behavior;
+- visible overload failure instead of silent audio dropping or unbounded growth;
+- graceful stop, immediate cancellation, connection/stop deadlines, unexpected-disconnect reporting, and explicit reconnect;
+- epoch-scoped results and rejection of stale-socket events after reconnect; and
+- deterministic protocol, corruption, provider-error, slow-socket, stop, cancel, timeout, and reconnect tests.
 
-## Implemented in checkpoint 3
+The initial transport defaults are:
 
-`frontend/src/services/directStreamAdapter.ts` connects Person 1's `MicrophoneCapture` to this package without defining an HTTP response model. Its capability provider supplies an already validated `StreamStartOptions`; the future Person 2 Zod adapter will own parsing the network response. A browser-local fake provider lets the mock UI prove microphone PCM routing and caption-state mapping while remaining clearly labeled as simulation. It performs no speech recognition, network request, persistence, or AWS call.
+| Setting | Default |
+|---|---:|
+| Maximum browser `WebSocket.bufferedAmount` before queueing | 65,536 bytes |
+| Maximum queued framed messages | 65,536 bytes |
+| Slow-socket drain interval | 20 ms |
+| Connection deadline | 5 seconds |
+| Graceful-stop deadline | 5 seconds |
 
-## Initial deliverable
+These values are bounded integration defaults, not production-tuning evidence. The approved browser/AWS tests must validate them for the one-hour logical-session target.
 
-Build a browser-compatible client that:
+## Frontend handoff
 
-- accepts mono 16 kHz signed 16-bit PCM chunks from Person 1;
-- opens a presigned Transcribe WebSocket URL supplied by the API;
-- encodes audio and end-of-stream Amazon EventStream messages;
-- validates/decodes transcript and exception EventStream messages;
-- emits small partial, final, connection, and safe error events;
-- bounds its queue and `WebSocket.bufferedAmount` behavior;
-- supports stop, cancellation, disconnect, and a fresh-URL reconnect; and
-- never logs signed URLs, audio, transcript text, or raw provider payloads.
+`frontend/src/services/directStreamAdapter.ts` is the current Person 1/3 integration boundary. It:
 
-Start with deterministic EventStream vectors and a fake WebSocket. Keep AWS provider types internal. The package receives no secret key and performs no SigV4 signing.
+1. asks an injected capability provider for an already validated `{ url, streamEpoch }`;
+2. opens `TranscribeStreamClient` before microphone capture begins;
+3. forwards every PCM chunk from `MicrophoneCapture`;
+4. maps provider partials/finals to the UI's `partial` and `final-observed` phases;
+5. stops and flushes capture before sending the provider end frame; and
+6. cancels capture/transport after failures so the microphone does not continue without a stream.
 
-The implementation must be browser-native. Do not introduce a Node/server streaming adapter, custom application audio header, backend audio service, or application WebSocket.
+This intentionally does not define Person 2's HTTP response shape. The accepted Zod stream-capability schema must parse the future API response and map it into `StreamStartOptions`.
 
-## Phase 1 handoff
+## Local browser simulation
 
-Freeze the UI-facing input/event interface with Person 1. Co-own the HTTP/stream-result identity contract with Person 2. Provide Person 5 fixtures for partial, final, provider exception, corrupt frame, slow socket, stop, and disconnect/reconnect.
+Mock mode uses `frontend/src/services/fakeTranscribeSocket.ts` with the real stream client. The tested local flow is:
 
-## Later
+```text
+real microphone
+  → real AudioWorklet/resampling
+  → real PCM chunks
+  → real stream adapter
+  → real EventStream encoder and lifecycle client
+  → browser-local fake provider
+  → simulated partial/final captions
+```
 
-Recorded-file batch transcription, seamless audio replay, multi-provider support, and production browser tuning are not initial assignments.
+The fixed caption `Microphone PCM reached the local stream client.` proves PCM routing and result mapping only. It does not recognize speech, contact AWS, use a presigned URL, save transcript text, or verify deployed behavior. The UI labels these results `Simulated`; finals remain `Final observed`, never `Saved`, because no persistence API acknowledged them.
+
+## Public lifecycle
+
+The intended integration order is:
+
+```ts
+const client = new TranscribeStreamClient(handlers);
+
+await client.start({ url, streamEpoch });
+client.sendAudio(pcmChunk);
+await client.stop();
+```
+
+- `url` is a sensitive replayable bearer capability and must not enter logs, analytics, storage, navigation, or error text.
+- `sendAudio` returns `false` when a chunk is rejected. Overload and protocol failures are also surfaced through safe error handlers.
+- `stop` is graceful: stop microphone intake first, allow its final flush, drain the bounded accepted queue, send the empty `AudioEvent`, and wait within the terminal-result deadline.
+- `cancel` closes immediately and does not claim a graceful provider stop.
+- Reconnect is not automatic URL reuse. Request a fresh API-authorized URL/epoch, then call `start` again for the same logical application session.
+- Emitted finals are client-observed provider results. They become durable only after Person 2's segment API acknowledges them.
+
+## Verification
+
+From the repository root:
+
+```bash
+npm ci
+npx vitest run packages/stream-client
+npm run check
+```
+
+At the current checkpoint, the focused package suite has 20 tests and the repository suite has 34 tests across 9 files. Normal tests use fake WebSockets and make no AWS or external network calls.
+
+For the visible local test, start the frontend in mock mode:
+
+```bash
+npm run dev --workspace @live-transcription/frontend
+```
+
+Open the live-transcription page, press **Test microphone**, grant permission, and confirm that the PCM count increases and clearly simulated partial/final captions appear. Stop the microphone after the check. Raw PCM is not persisted or sent over the network in this local path.
+
+## Remaining Phase 1 work
+
+- accept Person 2's reviewed Zod stream-capability response and map it into `StreamStartOptions`;
+- replace the local fake capability/provider with the real authenticated signing endpoint and supplied WSS URL;
+- run a short approval-gated AWS browser smoke test;
+- verify expired/rejected signing, provider rejection, microphone denial, network interruption, and fresh-epoch reconnect in the integrated UI;
+- connect final results to the idempotent segment-upload API and show `Saved` only after acknowledgment; and
+- execute accelerated local soak/cleanup checks followed by the approved bounded one-hour browser run.
+
+Recorded-file batch transcription, raw-audio storage, seamless audio replay, multi-provider support, summaries, and production tuning remain outside this Phase 1 package assignment.

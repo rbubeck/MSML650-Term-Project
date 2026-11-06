@@ -1,6 +1,6 @@
 # Direct Transcribe Stream Client — Person 3 Phase 1
 
-Status: PR 1 protocol foundation implemented; WebSocket lifecycle integration is intentionally deferred.
+Status: protocol foundation and fake-tested WebSocket lifecycle implemented; frontend and real AWS integration remain pending.
 
 ## Implemented in PR 1
 
@@ -11,7 +11,22 @@ Status: PR 1 protocol foundation implemented; WebSocket lifecycle integration is
 - bounded, content-free provider and protocol errors; and
 - deterministic success, corrupt-frame, malformed-payload, and provider-exception tests.
 
-No AWS call, presigned URL handling, WebSocket connection, queue, retry, or UI integration is included in this PR. Documentation and mocks are not runtime evidence of a deployed Transcribe stream.
+Checkpoint 1 made no AWS call and did not include transport behavior. Documentation and mocks are not runtime evidence of a deployed Transcribe stream.
+
+## Implemented in checkpoint 2
+
+- `TranscribeStreamClient.start({ url, streamEpoch })` opens only a supplied secure WebSocket URL;
+- `sendAudio` frames PCM and either sends or places it in a bounded queue;
+- slow-socket overflow is surfaced and terminated instead of silently dropping audio;
+- partial/final callbacks include the authorized stream epoch;
+- corrupt messages, provider exceptions, connection failures, and unexpected disconnects become safe errors;
+- `stop` drains accepted frames, sends the empty end event, and uses a bounded terminal-result deadline;
+- `cancel` closes immediately without claiming a graceful provider stop; and
+- a later reconnect uses a new `start` call, URL, and epoch while stale-socket events are ignored.
+
+Defaults are a 65,536-byte `WebSocket.bufferedAmount` threshold, a 65,536-byte framed-message queue, 20 ms drain polling, a five-second connection deadline, and a five-second stop deadline. These values are bounded initial integration defaults and need browser/AWS evidence before production tuning.
+
+The package still does not request a URL, access the microphone, upload final text, or log stream content. Person 1 stops and flushes capture before calling stream `stop`; Person 2 supplies the URL and epoch; Person 1 uploads emitted finals and shows saved status only after API acknowledgment.
 
 ## Initial deliverable
 

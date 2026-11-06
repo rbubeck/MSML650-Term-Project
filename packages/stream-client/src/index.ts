@@ -25,3 +25,15 @@ export {
   type EventStreamDecodeErrorCode,
   type ProviderMessageErrorCode,
 } from './errors.js';
+export {
+  TranscribeStreamClient,
+  type StreamClientError,
+  type StreamClientErrorCode,
+  type StreamClientHandlers,
+  type StreamClientOptions,
+  type StreamConnectionState,
+  type StreamResult,
+  type StreamStartOptions,
+  type StreamWebSocket,
+  type WebSocketFactory,
+} from './stream-client.js';

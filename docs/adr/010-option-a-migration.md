@@ -12,6 +12,8 @@ The repository described Option B: a browser-to-ECS audio proxy. The team select
 
 The browser connects directly to Amazon Transcribe Streaming over a Lambda-presigned WebSocket URL. The browser implements Amazon EventStream framing/decoding and receives provider results. An authenticated API manages sessions and accepts final text uploads; DynamoDB stores acknowledged finals and S3 holds exports. Stored transcript content is **client supplied**, not independently provider verified. The infrastructure guide is Console-first.
 
+Phase clarification: ADR-011 limits the first integrated MVP to DynamoDB-backed live transcript history and deletion. S3 exports remain compatible with this architecture but are deferred until after Phase 1.
+
 The previous accepted ADR-006 PCM *capture target* remains useful: mono 16 kHz signed 16-bit little-endian PCM, initially 100 ms/3,200 bytes per chunk. Its 16-byte **application header** is superseded and removed. ADR-008 (Zod contracts) and ADR-009 (toolchain) remain active. The Option B ADR-001 through ADR-007 proposals and B-specific code/snapshots are removed; Git history preserves them.
 
 ## Alternatives and consequences

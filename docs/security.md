@@ -1,25 +1,29 @@
-# Option A Security and Privacy
+# Phase 1 Security and Privacy
 
-Status: target controls; implementation, deployment, retention, and consent decisions are pending.
+Status: required MVP controls. A development smoke verified the Cognito → JWT-authorized API Gateway → Lambda signer → direct Transcribe trust path for one configured user on 2026-11-07; persistence, adversarial checks and production policy remain pending.
 
 ## Trust boundaries
 
-1. Browser ↔ Cognito: identity and tokens.
-2. Browser ↔ API Gateway/Lambda: authenticated session, signing, upload, history, export, deletion requests.
-3. Browser ↔ Amazon Transcribe: direct WSS; the presigned URL grants a limited capability until expiry. The application API does not observe provider results on this path.
-4. Lambda ↔ DynamoDB/S3: owner-checked persistence and export. Client-uploaded text is untrusted content.
+1. Browser ↔ Cognito for identity.
+2. Browser ↔ API Gateway/Lambda for authenticated sessions, signing, saves, history, and deletion.
+3. Browser ↔ Amazon Transcribe for direct live audio/results.
+4. Lambda ↔ DynamoDB for owner-checked Phase 1 persistence.
 
 ## Required controls
 
-- API Gateway validates the Cognito access token. Lambda derives `sub` from validated claims and checks every session operation against DynamoDB ownership. Never use client `userId` for authorization.
-- Lambda's execution role alone signs direct Transcribe URLs with the minimum required `transcribe:StartStreamTranscriptionWebSocket` permission. If AWS requires `Resource: *`, document and constrain what is feasible through role trust, API authorization, limits, and monitoring. No secret access key or derived signing key enters the frontend or repo; the presigned URL itself may contain a credential identifier and temporary session token.
-- Return signed URLs over HTTPS with `Cache-Control: no-store`; never log URLs, query strings, tokens, raw audio, or transcript text. Expiry is at most AWS's 300-second presigning maximum and should be shorter if approved. Treat URL replay and uncontrolled provider connection attempts as explicit cost risks.
-- Bound signing requests and final uploads per user/session; enforce allowed language/format/Region, session state, text size, and segment count. Issuance limits cannot guarantee active Transcribe concurrency because a direct presigned URL can be reused until expiry; monitor actual usage and account quotas. Browser-side checks improve UX but do not enforce security.
-- Keep S3 private with Block Public Access and TLS-only access; encrypt DynamoDB/S3 at rest. Use short-lived owner-authorized downloads. Do not expose direct DynamoDB credentials or general S3 write permission to browsers.
-- A saved transcript is client supplied. Sanitize/render it as untrusted text and do not use it as proof of what was spoken. Partials remain in memory only.
-- Deletion must deny application reads immediately, then retry physical removal. Retention, backups/PITR, logs, age/consent, jurisdiction, and regulated-data scope are `TBD` for human review.
-- Logs contain allow-listed event names, bounded error codes, timing and counts. Never put `sessionId`, `userId`, URL, transcript, or raw error messages in metric dimensions.
+- API Gateway validates the Cognito access token. Lambda derives `sub` and verifies every session operation against DynamoDB ownership/state.
+- Lambda runtime credentials sign only approved Transcribe Region/language/PCM parameters. No static or derived signing secret enters the frontend or repository.
+- Signed URL responses use HTTPS and `Cache-Control: no-store`. URLs are replayable bearer capabilities until expiry; never log, persist, analyze, or place them in browser history.
+- Start with a proposed 60-second connection-start expiry, require a fresh URL for reconnect, and rate-limit issuance per owner/session.
+- Enforce bounded language, text, segment batch, request rate, session state, and epoch values. Browser validation is UX, not authorization.
+- Render transcript text as untrusted text. Never store partials or raw live audio.
+- Logs use allow-listed event names, bounded error codes, timing, and counts. Never log JWTs, signed URLs, audio, transcript text, personal data, or raw provider error bodies. Never use user/session IDs as metric dimensions.
+- Deletion immediately denies reads and removes Phase 1 records with safe retry behavior.
 
-## Security verification
+## Minimum verification
 
-Test two-user isolation across list, read, URL signing, uploads, rename, complete, download, and delete. Test expired/misused URL handling where the provider permits, duplicate/conflicting uploads, oversized input, XSS-safe rendering, no secret/content logging, S3 public-access controls, and deletion denial. Real AWS behavior requires an authorized environment; mocks are not evidence of IAM or provider behavior.
+Observed in the development smoke: a public Cognito client without a secret, access-token JWT authorization, Lambda runtime-role signing, a non-cacheable capability response, and direct browser-to-Transcribe audio. This did not verify foreign-owner denial, abuse resistance, expiry boundaries, log review, deletion, persistence isolation, or production monitoring.
+
+Test two-user isolation for create/list/read/rename/sign/save/complete/delete; expired/rejected signing; malformed/oversized input; duplicate/conflicting final identity; stale epoch; XSS-safe rendering; content-free logs; and denial after deletion.
+
+Recorded-audio privacy, S3 controls, summaries/model data sharing, formal retention/backups, and regulated-data scope require later review and must not be inferred from Phase 1.

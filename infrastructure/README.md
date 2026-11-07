@@ -1,9 +1,22 @@
-# AWS Infrastructure — Console-First Guide (Person 4)
+# AWS Infrastructure — Person 4 Phase 1
 
-Status: planning/runbook only. No application AWS resources are defined or deployed by this repository. The historical paid account/budget report must be reverified before use.
+Status: the repository remains an approval-gated guide and does not provision resources automatically. A minimal Cognito/API Gateway/Lambda/Transcribe development stack was configured manually in `us-east-2` and passed a single-user live-caption smoke on 2026-11-07; DynamoDB and the MVP infrastructure are not deployed.
 
-Use [Console setup runbook](../docs/runbooks/console-option-a-setup.md) to inventory, create (only after approval), verify, and clean up Cognito, API Gateway/Lambda, DynamoDB, S3, IAM, CloudWatch, and Budgets. There is no CDK deployment path in this Option A structure. Record resource names/IDs in private team inventory, not this repository. Keep signing permissions on the Lambda execution role; browsers receive only short-lived presigned URLs.
+The minimum integrated environment contains:
 
-Region/data residency, consent, retention, account layout, quota, budget, deployers, and cleanup policy are `TBD`. Do not create resources or run paid tests without explicit orchestrator authorization.
+- Cognito User Pool and public browser app client;
+- API Gateway HTTP API with JWT authorization;
+- Lambda control/signing functions using runtime IAM credentials;
+- DynamoDB sessions/finals storage;
+- privacy-safe CloudWatch logs/alarms; and
+- an AWS Budget/usage check for the approved account.
 
-First tasks: inventory existing resources and costs read-only; agree the pending account/Region, IAM, retention, and quota decisions with the team; review Person 2's Lambda permission needs and Person 5's alarms; then prepare a named Console change checklist for approval. Person 2 owns Lambda handler behavior, while Person 4 owns the approved AWS resource configuration and handoff.
+Use [the Console setup runbook](../docs/runbooks/console-option-a-setup.md). Record resource identifiers privately. Do not create or modify resources until account, Region, deployer, cost bound, and cleanup owner are approved.
+
+Person 2 owns handler/signing behavior. Person 4 owns IAM/resource configuration and the DynamoDB adapter handoff. The browser receives only a short-lived presigned URL, never AWS secret keys.
+
+For the controlled first live-caption smoke test, `backend/api/src/smoke-test-lambda.ts` can run without DynamoDB by recognizing one configured Cognito owner/session. This does not replace Person 4's work: its epoch state is process-local and invalid for durable MVP, concurrency, reconnect evidence, or persistence. The smoke test still requires an approved Region/account, Cognito, API Gateway, a Lambda execution role, CORS, cost awareness, and cleanup ownership.
+
+The observed smoke configuration used a public Cognito SPA client without a secret, an HTTP API JWT authorizer, local-origin CORS, a Node.js 24 Lambda bundle, and an execution role limited to basic logging plus `transcribe:StartStreamTranscriptionWebSocket`. Identifiers, the configured owner/session, local `.env`, generated bundle/ZIP, tokens, signed URLs, and transcripts are deliberately excluded from Git. Set finite CloudWatch log retention, review Cognito self-registration and API throttling, keep a budget alert, stop active streams after tests, and remove temporary resources when no longer needed.
+
+S3, a backend audio proxy, recorded-audio storage, batch jobs, summaries, multiple environments, and production scaling are not Phase 1 infrastructure.

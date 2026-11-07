@@ -1,33 +1,42 @@
-# Option A AWS Console Setup and Handoff
+# Phase 1 AWS Console Setup and Handoff
 
-Status: `PROPOSED` guide. **Do not perform these steps until the orchestrator approves the named account, Region, budget, retention, and deployer.** The guide records what Person 4 must do and verify; it is not evidence of deployed resources.
+Status: development checklist. A bounded single-user subset was executed manually in an approved `us-east-2` account on 2026-11-07; the full persistence/MVP checklist remains proposed. Do not repeat, expand, or productionize resources without named account, Region, deployer, cost bound, and cleanup owner approval.
 
-## 1. Preflight and inventory
+## Executed smoke subset — 2026-11-07
 
-1. In the AWS Console, confirm the active account alias/ID and Region with the team. Record the account ID only in a private resource inventory.
-2. Review existing Cognito pools, API Gateway APIs, Lambda functions, DynamoDB tables, S3 buckets, IAM roles, CloudWatch log groups/alarms, and AWS Budgets. Reuse only resources explicitly assigned to this project; do not modify unrelated resources.
-3. Record owner, environment, resource name/ARN privately, Region, creation date, expected idle/variable cost, retention, and cleanup owner. Check current spend and configure alerts; a Budget alert does not prevent charges.
-4. Check account/Region Transcribe streaming concurrency and start-rate quotas and service availability. Choose a conservative approved app admission target before a browser test.
+The team manually configured a Cognito User Pool/public SPA client, an API Gateway HTTP API route with JWT authorization and local-origin CORS, a Node.js 24 Lambda signer using runtime-role credentials, and the Transcribe WebSocket IAM action. A local Vite browser authenticated, obtained a capability, streamed resampled mono PCM directly to Transcribe, and displayed real captions.
 
-## 2. Identity and signing
+This record intentionally omits all resource IDs, account/user identifiers, tokens, URLs and transcript content. DynamoDB, final-save/history APIs, multi-user isolation, reconnect and the one-hour run were not part of the smoke. Generated deployment artifacts and local environment values remain outside Git.
 
-1. Configure a project Cognito User Pool/app client and approved callback/logout origins. Do not create a client secret for a public browser app. Record issuer, client ID and allowed origins as non-secret environment configuration.
-2. Configure API Gateway HTTP API with a JWT authorizer tied to the approved Cognito issuer/audience. Protect every session/sign/upload/history/export/delete route.
-3. Create a narrowly scoped Lambda execution role for signing/control. Grant `transcribe:StartStreamTranscriptionWebSocket` only to the signer role; AWS's WebSocket policy example uses `Resource: *`, so document the IAM limitation and compensate with API ownership, URL expiry, rate limits, quotas, and monitoring. Grant DynamoDB/S3 permissions only to the functions that need them.
-4. Configure Lambda settings and environment references without static AWS keys. Verify the signer generates only approved Region/language/PCM parameters, a bounded expiry no greater than 300 seconds, and `Cache-Control: no-store`. Never expose the URL in logs or diagnostics.
+## 1. Preflight
 
-## 3. Data and exports
+1. Confirm account and Region privately; inventory existing Cognito, API Gateway, Lambda, DynamoDB, IAM, CloudWatch, and Budget resources.
+2. Reuse only resources explicitly assigned to this project.
+3. Confirm Transcribe streaming availability, current account quota, expected one-hour test cost, and budget alerts.
+4. Record resource owner, purpose, expected cost, and cleanup step privately.
 
-1. Create DynamoDB table(s) only after the data model and retention decision are accepted. Configure encryption, capacity, backups/PITR, TTL if used, and deletion policy explicitly. TTL is cleanup, not authorization.
-2. Create a private S3 export bucket with Block Public Access, TLS-only access policy, encryption, versioning/retention per approved policy, and narrowly scoped Lambda permissions. Do not use a public bucket or browser general-write credentials.
-3. Configure owner-authorized download behavior and deletion reconciliation. Record how backups and old object versions affect deletion promises.
+## 2. Minimum identity and API
 
-## 4. Observability and verification
+1. Configure a Cognito User Pool and public browser app client with approved local callback/logout origins; no client secret.
+2. Configure API Gateway HTTP API JWT authorization for every `/v1` route.
+3. Create Lambda execution roles with only required DynamoDB permissions and `transcribe:StartStreamTranscriptionWebSocket` for the signer.
+4. Use runtime credentials only. Configure safe non-secret Region/language/PCM settings.
+5. Verify signed responses are non-cacheable and no URL/query string is logged.
 
-1. Set CloudWatch log retention and privacy-safe structured fields. Configure alarms for signing failures, API errors, upload/export failures, abnormal Transcribe usage, and budget thresholds; assign an owner for each.
-2. Verify API JWT rejection, user A/B isolation, private S3 access, no signed URL or transcript text in logs, duplicate upload idempotency, export readiness, and immediate read denial on deletion.
-3. With approved synthetic/licensed audio and bounded duration, verify a browser obtains a signed URL, opens direct WSS to Transcribe, receives partial/final events, uploads finals, downloads an export, and deletes the session. Record actual date, Region, browser, configuration, cost estimate, and failures. Do not claim success from this checklist alone.
+## 3. Minimum persistence
 
-## 5. Cleanup and handoff
+Create DynamoDB resources only after Person 2/4 approve the Phase 1 keys and conditional-write behavior. Enable encryption and select conservative capacity for the integration environment. Do not add S3, backend audio-proxy, container-service, load-balancer, or recorded-audio resources.
 
-Record exact resource inventory, endpoints, non-secret frontend config, IAM role names, quota findings, alarms, budgets, retention, test evidence, and rollback steps privately. After approval, remove temporary test identities, exports, functions, API routes, tables/buckets, log groups, and alarms in dependency order according to retention policy. Verify charges and residual resources afterward.
+## 4. Verification
+
+1. Reject missing/invalid JWTs and foreign-owner access.
+2. Verify create/sign/save/complete/history/delete with two test identities.
+3. Verify duplicate final idempotency and stale-epoch rejection.
+4. Verify no JWT, signed URL, audio, or transcript text in logs.
+5. Run the approved short browser smoke, then the separately approved one-hour acceptance.
+
+## 5. Handoff and cleanup
+
+Record non-secret frontend configuration, role/resource names, quota findings, alarms, actual checks, estimated cost, and rollback privately. Remove temporary identities and unneeded resources after testing, verify cleanup, and review residual charges.
+
+Recorded-file, S3 export, summaries, production environments, advanced alarms, and load-test setup are later runbooks.

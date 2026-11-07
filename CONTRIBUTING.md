@@ -1,13 +1,18 @@
-# Contributing
+# Contributing — Option A Phase 1
 
-This is the Option A team workspace. Read `AGENTS.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, your area README, and accepted ADRs before starting. Use Node.js 24/npm 11 from the root; `npm ci` installs the shared lockfile.
+Read `AGENTS.md`, `direction_option_a.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, `INTEGRATION_PLAN.md`, your area README, and accepted ADRs before starting.
 
-## Work and review
+## Initial collaboration rule
 
-- Start from the approved integration branch; use short-lived `feat/frontend-*`, `feat/auth-*`, `feat/direct-stream-*`, `feat/storage-*`, `feat/eval-*`, or `docs/*` branches.
-- Keep one owner area per PR where possible. Shared contracts, session lifecycle, trust boundary, infrastructure, or multiple-area changes need affected-owner and orchestrator review.
-- Use Zod in `packages/contracts` for application shapes. Do not invent independent browser/API types or treat provider EventStream as an application wire contract.
-- Person 1 builds UI/capture; Person 2 owns authenticated API and signing; Person 3 owns the direct browser stream client; Person 4 owns DynamoDB/S3 and Console-first AWS resource guidance; Person 5 owns evaluation and quality. Four contributors may combine Persons 1 and 3.
-- Preserve existing evaluation scripts/artifacts unless a reviewed migration replaces them. Do not commit credentials, signed URLs, audio, private transcripts, or environment files.
+The first shared PR implements the minimum Zod application contracts. After that, Persons 1–4 build their Phase 1 components in parallel against the shared schemas and deterministic fakes; Person 5 integrates them.
 
-Before TypeScript handoff run `npm run check`. Report exact commands and results in the pull request description; this branch has no PR template or automated GitHub workflow. Local tests use fakes; AWS resource creation, deployment, and paid/load tests require explicit approval. Mark unresolved security, consent, retention, Region, quota, and cost decisions `PROPOSED` or `TBD`.
+- Use short-lived `feat/frontend-*`, `feat/auth-*`, `feat/direct-stream-*`, `feat/storage-*`, `feat/eval-*`, or `docs/*` branches.
+- Keep one owner area per PR where practical and request affected-owner review for public contracts or lifecycle changes.
+- Do not invent local session states, errors, stream URL shapes, or final identities.
+- Provider EventStream belongs in `packages/stream-client`; application JSON belongs in `packages/contracts`.
+- Preserve evaluation artifacts and never commit credentials, signed URLs, private audio/transcripts, or environment files.
+- Do not add recorded uploads, exports, summaries, or production infrastructure to Phase 1.
+
+Run `npm run check` before TypeScript handoff and report the exact commands/results. Local tests use fakes. AWS resource creation and paid/one-hour tests require explicit approval, a named account/Region, cost bound, and cleanup plan.
+
+The repository currently has no automated GitHub workflow or PR template. Restore those as a focused governance change before calling local checks an enforced merge gate.

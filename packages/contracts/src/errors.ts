@@ -13,7 +13,6 @@ export const ERROR_CODES = [
   'RATE_LIMITED',
   'CAPACITY_LIMIT',
   'SIGNING_FAILED',
-  'EXPORT_NOT_READY',
   'INTERNAL_ERROR',
 ] as const;
 

@@ -1,19 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
-  STREAM_URL_MAX_EXPIRY_SECONDS,
   STREAM_URL_MAX_LENGTH,
-  STREAM_URL_PROPOSED_EXPIRY_SECONDS,
   requestStreamUrlRequestSchema,
   streamUrlResponseSchema,
 } from './stream-url.js';
 
+const validUrl =
+  'wss://transcribestreaming.us-east-1.amazonaws.com:8443/stream-transcription-websocket?language-code=en-US';
+
 const validResponse = {
   sessionId: 'sess_abc123',
-  url: 'wss://transcribestreaming.us-east-1.amazonaws.com:8443/stream-transcription-websocket?language-code=en-US',
-  expiresAt: '2026-11-06T16:01:00Z',
-  expiresInSeconds: STREAM_URL_PROPOSED_EXPIRY_SECONDS,
   streamEpoch: 1,
-  parameters: { languageCode: 'en-US', mediaEncoding: 'pcm', sampleRateHertz: 16000 },
+  url: validUrl,
+  expiresAt: '2026-11-06T16:01:00Z',
+  languageCode: 'en-US',
+  mediaEncoding: 'pcm',
+  sampleRateHz: 16000,
+  channels: 1,
 };
 
 describe('requestStreamUrlRequestSchema', () => {
@@ -29,14 +32,28 @@ describe('requestStreamUrlRequestSchema', () => {
 });
 
 describe('streamUrlResponseSchema', () => {
-  it('accepts a valid response', () => {
+  it('accepts a valid response with exactly the spec fields', () => {
     expect(streamUrlResponseSchema.safeParse(validResponse).success).toBe(true);
+  });
+
+  it('rejects the old nested shape and extra expiry field', () => {
+    const nested: Record<string, unknown> = {
+      ...validResponse,
+      parameters: { languageCode: 'en-US', mediaEncoding: 'pcm', sampleRateHertz: 16000 },
+    };
+    for (const flat of ['languageCode', 'mediaEncoding', 'sampleRateHz', 'channels']) {
+      delete nested[flat];
+    }
+    expect(streamUrlResponseSchema.safeParse(nested).success).toBe(false);
+    expect(
+      streamUrlResponseSchema.safeParse({ ...validResponse, expiresInSeconds: 60 }).success,
+    ).toBe(false);
   });
 
   it('rejects a URL that is not wss://', () => {
     for (const url of [
-      'ws://transcribestreaming.us-east-1.amazonaws.com:8443/stream-transcription-websocket',
-      'https://transcribestreaming.us-east-1.amazonaws.com/stream-transcription-websocket',
+      validUrl.replace('wss://', 'ws://'),
+      validUrl.replace('wss://', 'https://'),
     ]) {
       expect(streamUrlResponseSchema.safeParse({ ...validResponse, url }).success).toBe(false);
     }
@@ -44,10 +61,23 @@ describe('streamUrlResponseSchema', () => {
 
   it('rejects a host that is not Amazon Transcribe streaming', () => {
     for (const url of [
-      'wss://evil.example.com/stream-transcription-websocket',
-      'wss://transcribestreaming.us-east-1.amazonaws.com.evil.example/x',
-      'wss://evil.com/transcribestreaming.us-east-1.amazonaws.com',
-      'wss://transcribe.us-east-1.amazonaws.com/x',
+      'wss://evil.example.com:8443/stream-transcription-websocket',
+      'wss://transcribestreaming.us-east-1.amazonaws.com.evil.example:8443/stream-transcription-websocket',
+      'wss://evil.com:8443/transcribestreaming.us-east-1.amazonaws.com',
+      'wss://transcribe.us-east-1.amazonaws.com:8443/stream-transcription-websocket',
+    ]) {
+      expect(streamUrlResponseSchema.safeParse({ ...validResponse, url }).success).toBe(false);
+    }
+  });
+
+  it('requires port 8443 and the stream-transcription-websocket path', () => {
+    const host = 'wss://transcribestreaming.us-east-1.amazonaws.com';
+    for (const url of [
+      `${host}/stream-transcription-websocket`,
+      `${host}:443/stream-transcription-websocket`,
+      `${host}:8443/other-path`,
+      `${host}:8443/`,
+      `${host}:8443/stream-transcription-websocket/extra`,
     ]) {
       expect(streamUrlResponseSchema.safeParse({ ...validResponse, url }).success).toBe(false);
     }
@@ -57,18 +87,17 @@ describe('streamUrlResponseSchema', () => {
     expect(streamUrlResponseSchema.safeParse({ ...validResponse, url: 'not a url' }).success).toBe(
       false,
     );
-    const long = `wss://transcribestreaming.us-east-1.amazonaws.com/x?q=${'a'.repeat(STREAM_URL_MAX_LENGTH)}`;
+    const long = `${validUrl}&q=${'a'.repeat(STREAM_URL_MAX_LENGTH)}`;
     expect(streamUrlResponseSchema.safeParse({ ...validResponse, url: long }).success).toBe(false);
   });
 
-  it('bounds the expiry to between 1 and the AWS maximum', () => {
-    const at = (expiresInSeconds: number) =>
-      streamUrlResponseSchema.safeParse({ ...validResponse, expiresInSeconds }).success;
-    expect(at(0)).toBe(false);
-    expect(at(1)).toBe(true);
-    expect(at(STREAM_URL_MAX_EXPIRY_SECONDS)).toBe(true);
-    expect(at(STREAM_URL_MAX_EXPIRY_SECONDS + 1)).toBe(false);
-    expect(at(30.5)).toBe(false);
+  it('requires an ISO UTC expiry time', () => {
+    expect(streamUrlResponseSchema.safeParse({ ...validResponse, expiresAt: 'soon' }).success).toBe(
+      false,
+    );
+    const withoutExpiry: Record<string, unknown> = { ...validResponse };
+    delete withoutExpiry['expiresAt'];
+    expect(streamUrlResponseSchema.safeParse(withoutExpiry).success).toBe(false);
   });
 
   it('requires a stream epoch of at least 1', () => {
@@ -83,15 +112,13 @@ describe('streamUrlResponseSchema', () => {
     expect(streamUrlResponseSchema.safeParse(withoutEpoch).success).toBe(false);
   });
 
-  it('allows only PCM at 16 kHz', () => {
-    const withParameters = (parameters: Record<string, unknown>) =>
-      streamUrlResponseSchema.safeParse({
-        ...validResponse,
-        parameters: { ...validResponse.parameters, ...parameters },
-      }).success;
-    expect(withParameters({ mediaEncoding: 'flac' })).toBe(false);
-    expect(withParameters({ sampleRateHertz: 44100 })).toBe(false);
-    expect(withParameters({ languageCode: '' })).toBe(false);
+  it('allows only mono PCM at 16 kHz', () => {
+    const change = (patch: Record<string, unknown>) =>
+      streamUrlResponseSchema.safeParse({ ...validResponse, ...patch }).success;
+    expect(change({ mediaEncoding: 'flac' })).toBe(false);
+    expect(change({ sampleRateHz: 44100 })).toBe(false);
+    expect(change({ channels: 2 })).toBe(false);
+    expect(change({ languageCode: '' })).toBe(false);
   });
 
   it('rejects any field that could carry a secret or credential', () => {

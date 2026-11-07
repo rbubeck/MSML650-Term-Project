@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { completeSessionRequestSchema, completeSessionResponseSchema } from './completion.js';
 
 const completedSession = {
-  id: 'sess_abc123',
+  sessionId: 'sess_abc123',
   title: 'Team standup',
-  language: 'en-US',
+  languageCode: 'en-US',
   state: 'COMPLETED',
   streamEpoch: 2,
   createdAt: '2026-11-06T16:00:00Z',

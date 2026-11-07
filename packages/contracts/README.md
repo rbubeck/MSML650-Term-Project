@@ -71,7 +71,8 @@ Tick an item off, and note the decision here, once the team has settled it. Unti
 - [ ] **Deleting an already-deleted session** (`DELETE`): return `204` again (idempotent) or `NOT_FOUND`? Undecided. Proposed: `NOT_FOUND`, since a deleting session is already unreadable and a foreign ID must look the same as a missing one.
 - [ ] **Completion details** (`src/completion.ts`): the request body is empty for now; decide whether completion needs any input. Also decide what happens when completing a session in `CREATED` (never streamed) or `FAILED`: allowed, or `STATE_CONFLICT`?
 - [ ] **Status code for success responses**: `204` for delete and the codes for create (`201` or `200`) are assumed, not agreed.
-- [ ] **Handler duties the schemas cannot enforce**: `Cache-Control: no-store` on the stream-URL response, ownership and state checks, epoch rules, parsing responses before returning them, and never logging URLs, tokens or transcript text.
+- [ ] **Handler duties the schemas cannot enforce**: `Cache-Control: no-store` on the stream-URL response, ownership and state checks, epoch rules, parsing responses before returning them, and never logging URLs, tokens or transcript text. The stream-URL handler in `backend/api` now does these for its route.
+- [ ] **Stream-URL handler assumptions**: the handler in `backend/api` moves `CREATED` to `STREAMING` on the first URL, may skip epoch numbers, rejects ID tokens, and uses placeholder HTTP statuses. Each is listed with its reasoning under "Deviations and assumptions" in `backend/api/README.md`.
 
 ### Change history
 

@@ -2,5 +2,27 @@
   "name": "@live-transcription/api",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @live-transcription/contracts && tsc --project tsconfig.build.json",
+    "typecheck": "tsc --project tsconfig.json",
+    "test": "vitest run --root ../.. backend/api"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@live-transcription/contracts": "*",
+    "@smithy/protocol-http": "^5.6.2",
+    "@smithy/signature-v4": "^5.7.5"
+  }
 }

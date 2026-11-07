@@ -9,7 +9,7 @@ import type {
   SessionRepository,
   SignTranscribeUrlInput,
   TranscribeUrlSigner,
-} from './ports.js';
+} from '../ports.js';
 
 /**
  * Deterministic fakes for tests. This file is test support only: it is excluded

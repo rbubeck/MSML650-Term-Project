@@ -59,18 +59,31 @@ API Gateway (JWT verified) → handler
 
 Every response, success or error, carries `Cache-Control: no-store`. Errors use the shared envelope with fixed safe messages. The signed URL appears only in the 200 body. It never appears in an error body, a log, or a validation message. A foreign session and a missing session produce identical responses.
 
-## Files
+## Layout
 
-| File | Purpose |
-|---|---|
-| `src/ports.ts` | Injectable interfaces: `Clock`, `SessionRepository`, `TranscribeUrlSigner`, `RateLimiter`, `Logger` |
-| `src/stream-url-handler.ts` | `createStreamUrlHandler(deps)` returns the Lambda-compatible handler |
-| `src/transcribe-signer.ts` | `createTranscribeUrlSigner(credentials)` and `lambdaRuntimeCredentials()` |
-| `src/identity.ts` | Owner from validated JWT claims |
-| `src/config.ts` | `validateStreamUrlConfig`: Region, expiry (default 60, at most 300), allowed languages |
-| `src/responses.ts` | Response helpers, placeholder status mapping, fixed safe messages |
-| `src/events.ts` | Minimal API Gateway HTTP API event and result shapes |
-| `src/testing.ts` | Test fakes. Excluded from the build; never import from production code |
+```text
+src/
+├── index.ts          public exports
+├── config.ts         validateStreamUrlConfig: Region, expiry (default 60, at most 300), allowed languages
+├── ports.ts          injectable interfaces: Clock, SessionRepository, TranscribeUrlSigner, RateLimiter, Logger
+├── http/             shared by every route
+│   ├── events.ts     minimal API Gateway HTTP API event and result shapes
+│   ├── identity.ts   owner from validated JWT claims
+│   └── responses.ts  response helpers, placeholder status mapping, fixed safe messages
+├── routes/           one file per route
+│   └── stream-url.ts createStreamUrlHandler(deps): POST /v1/sessions/{sessionId}/stream-url
+├── aws/              code that talks to AWS (focus of real-AWS verification and IAM review)
+│   └── transcribe-signer.ts  createTranscribeUrlSigner(credentials), lambdaRuntimeCredentials()
+└── testing/          test fakes; excluded from the build, never import from production code
+    └── fakes.ts
+```
+
+Tests sit beside the code they test as `*.test.ts`. Where new code goes:
+
+- **A new route:** a file in `routes/` with its test beside it. Reuse `http/` for identity, parsing and responses.
+- **A new interface:** add it to `ports.ts`, and add its fake to `testing/fakes.ts`.
+- **Code that calls an AWS service:** `aws/`. Person 4's DynamoDB adapter may live here or in `backend/persistence/`; agree with Person 4.
+- **Avoid** splitting `ports.ts` into one file per interface, or adding a service layer between routes and ports, until the code is large enough to need it.
 
 ## Interfaces and who supplies them
 
@@ -93,7 +106,7 @@ The deliverable above also lists ID generation. The stream-URL route creates no 
 - A missing session and a session owned by someone else must both return `NOT_FOUND`. If the conditional write fails, decide the result without revealing a foreign session: missing or not owned is `NOT_FOUND`; owned but in another state is `STATE_CONFLICT`.
 - Two concurrent calls must never return the same epoch.
 
-`FakeSessionRepository` in `src/testing.ts` implements this behavior and can serve as the shared deterministic fake.
+`FakeSessionRepository` in `src/testing/fakes.ts` implements this behavior and can serve as the shared deterministic fake.
 
 ## What Person 3 can consume
 
@@ -122,7 +135,7 @@ Root `npm run check` stops at `format:check` in a Windows checkout with CRLF lin
 
 Each item needs a real, approved AWS environment. None is proven by the tests.
 
-- **That Transcribe accepts our signed URL.** `transcribe-signer.test.ts` checks the signature against an independent implementation of the AWS pseudocode, which shows we follow the documented algorithm, not that the service agrees.
+- **That Transcribe accepts our signed URL.** `src/aws/transcribe-signer.test.ts` checks the signature against an independent implementation of the AWS pseudocode, which shows we follow the documented algorithm, not that the service agrees.
 - **Encoding of `=` in query values.** The AWS guide says "Double-encode any equals (=) characters in parameter values", but standard SigV4 and the signing library encode once. A session token can contain `=`. If AWS really requires double-encoding, URLs built with such a token will be rejected. Verify with a real credential.
 - **The signed header list.** The guide's pseudocode signs only `host`; its sample URL shows `content-type;host;x-amz-date`. We sign `host` only.
 - **`media-encoding=pcm`.** The guide's sample uses `flac`; PCM comes from this repository's own docs.
@@ -138,14 +151,14 @@ Each item departs from, or fills a gap in, an existing rule or document. The rea
 2. **Issuing a URL moves `CREATED` to `STREAMING`.** `API_CONTRACTS.md` only says "authorize a new stream epoch". The move happens in the same atomic step as the allocation, so a session shows `STREAMING` after its first URL even if the browser never connects. An alternative is to move on the first accepted segment upload. Undecided.
 3. **Epochs can be skipped.** The epoch is allocated before the language check and before signing, because the session language is only known after the repository call. A signer failure or unsupported language therefore consumes an epoch. Epochs are monotonic, not contiguous; consumers (stale-epoch rules, UI) must not assume no gaps.
 4. **`token_use` must be `access` when present.** The spec requires the access token, and rejecting a token that declares itself an ID token catches a misconfigured client. A claims set without `token_use` is still accepted. Check against real tokens.
-5. **HTTP status mapping is a placeholder** in `src/responses.ts`: 401, 404, 400, 409, 429, 503 for `CAPACITY_LIMIT`, 502 for `SIGNING_FAILED`, 500. The contract leaves the mapping undecided. It is a single table.
+5. **HTTP status mapping is a placeholder** in `src/http/responses.ts`: 401, 404, 400, 409, 429, 503 for `CAPACITY_LIMIT`, 502 for `SIGNING_FAILED`, 500. The contract leaves the mapping undecided. It is a single table.
 6. **An unsupported session language returns `INVALID_INPUT` (400).** It is arguably a server configuration problem rather than a client one; alternatives are `STATE_CONFLICT` or `INTERNAL_ERROR`. The approved language list is undecided (`allowedLanguageCodes` is configuration).
 7. **The rate limiter and logger have silent defaults.** The default limiter allows everything and the default logger records nothing. `RATE_LIMITED` and `CAPACITY_LIMIT` come only from an injected limiter, and no real limiter exists because the limits are undecided (decision queue blocker 3). A production logger still has to be written and must accept only allow-listed event names and error codes, as `Logger` enforces.
 8. **`expiresAt` is rounded down to whole seconds,** so it is never later than the real expiry. The response carries `expiresAt` only, as the spec lists, so a client with a skewed clock can misjudge it; clients should treat a rejected connection as "request a new URL".
 9. **New dependencies in this workspace:** `@smithy/signature-v4`, `@smithy/protocol-http` and `@aws-crypto/sha256-js`, installed with `--ignore-scripts`. They are AWS-maintained and are what the AWS SDK itself uses. Signing by hand is easy to get subtly wrong, and AWS's guide recommends SDKs over hand-rolling. No ADR was written: the standards require one for overlapping libraries, and none overlap. `npm audit` for this workspace reports 0 vulnerabilities; the repository's 10 existing moderate findings are in the lint tooling, untouched here.
 10. **Hand-written API Gateway event types** instead of `@types/aws-lambda`, to avoid another dependency. They cover only the fields the handler reads.
 11. **Contracts resolve differently in typecheck and tests.** Typecheck maps `@live-transcription/contracts` to its source with `paths`, as the frontend does. Vitest resolves it through `node_modules` to the built `dist/`, so contracts must be built before testing (as the frontend's `pcm-worklet` test already requires). A stale `dist/` can make the two disagree. The `build` script rebuilds contracts first because the root workspace order builds `backend/api` before `packages/contracts`. Two cleaner fixes would edit shared files and were not made: a Vitest alias to the contracts source in the root config, or TypeScript project references.
-12. **`src/testing.ts` lives under `src/`.** It is not named `*.test.ts`, so `tsconfig.build.json` excludes it explicitly.
+12. **Test fakes live in `src/testing/`.** They are not named `*.test.ts`, so `tsconfig.build.json` excludes the folder explicitly.
 13. **No deployable entry point.** The package exports `createStreamUrlHandler`. A Lambda entry point needs Person 4's adapter and decisions on Region, allowed languages and environment variable names.
 14. **Test Region and language are synthetic.** `us-east-1` and `en-US` are test values, not a team decision.
 15. **IAM scope.** The AWS example grants `transcribe:StartStreamTranscriptionWebSocket` on `Resource: "*"`. Compensating controls are the owner check, short expiry, rate limits and monitoring; see `docs/security.md`.

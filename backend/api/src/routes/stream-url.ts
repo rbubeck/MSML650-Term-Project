@@ -6,9 +6,9 @@ import {
   streamUrlResponseSchema,
   type ErrorCode,
 } from '@live-transcription/contracts';
-import type { StreamUrlConfig } from './config.js';
-import type { ApiGatewayEvent, ApiGatewayResult } from './events.js';
-import { identityFromEvent } from './identity.js';
+import type { StreamUrlConfig } from '../config.js';
+import type { ApiGatewayEvent, ApiGatewayResult } from '../http/events.js';
+import { identityFromEvent } from '../http/identity.js';
 import type {
   Clock,
   Identity,
@@ -16,8 +16,8 @@ import type {
   RateLimiter,
   SessionRepository,
   TranscribeUrlSigner,
-} from './ports.js';
-import { errorResponse, jsonResponse } from './responses.js';
+} from '../ports.js';
+import { errorResponse, jsonResponse } from '../http/responses.js';
 
 /** The request body is empty by contract, so anything large is invalid. */
 const MAX_BODY_CHARACTERS = 1024;

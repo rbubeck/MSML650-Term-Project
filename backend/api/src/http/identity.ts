@@ -1,5 +1,5 @@
 import type { ApiGatewayEvent } from './events.js';
-import type { Identity } from './ports.js';
+import type { Identity } from '../ports.js';
 
 /** A Cognito `sub` is a UUID; this is a sanity bound, not a format rule. */
 export const MAX_OWNER_ID_LENGTH = 128;

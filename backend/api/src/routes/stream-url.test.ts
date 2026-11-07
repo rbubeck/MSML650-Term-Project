@@ -4,11 +4,11 @@ import {
   type ErrorCode,
 } from '@live-transcription/contracts';
 import { describe, expect, it, vi } from 'vitest';
-import { validateStreamUrlConfig } from './config.js';
-import type { ApiGatewayEvent, ApiGatewayResult } from './events.js';
-import { ERROR_STATUS } from './responses.js';
-import { createStreamUrlHandler } from './stream-url-handler.js';
-import { createTranscribeUrlSigner } from './transcribe-signer.js';
+import { validateStreamUrlConfig } from '../config.js';
+import type { ApiGatewayEvent, ApiGatewayResult } from '../http/events.js';
+import { ERROR_STATUS } from '../http/responses.js';
+import { createStreamUrlHandler } from './stream-url.js';
+import { createTranscribeUrlSigner } from '../aws/transcribe-signer.js';
 import {
   FAKE_TRANSCRIBE_HOST,
   FakeRateLimiter,
@@ -17,7 +17,7 @@ import {
   FixedClock,
   RecordingLogger,
   type FakeSession,
-} from './testing.js';
+} from '../testing/fakes.js';
 
 const OWNER = 'user-a';
 const OTHER_USER = 'user-b';

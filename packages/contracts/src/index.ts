@@ -1,4 +1,5 @@
 export * from './audio-format.js';
+export * from './completion.js';
 export * from './errors.js';
 export * from './segments.js';
 export * from './session.js';

@@ -28,7 +28,8 @@ Update this section whenever a schema is added, changed, or accepted. Schemas ma
 | Session, create request, list query, page | `src/session.ts` | `DRAFT` | States from ADR-011 (`CREATED`, `STREAMING`, `COMPLETED`, `DELETING`, `FAILED`). Create request never accepts an owner or state. Placeholder bounds: title 120 characters, ID 128, page size default 20 and max 50, cursor 512. Language is validated by shape only; the approved list is still TBD. |
 | Stream URL request, response and audio settings | `src/stream-url.ts` | `DRAFT` | Empty request body. Response carries the `wss://` URL (host must be Amazon Transcribe streaming), `expiresAt` and `expiresInSeconds` (1–300, AWS maximum), `streamEpoch` (at least 1), and PCM 16 kHz parameters. Proposed default expiry 60 seconds (decision queue blocker 3), not accepted. The URL is sensitive: `Cache-Control: no-store` is a handler duty the schema cannot enforce. Rejects fields that could carry a secret. |
 | Final-segment upload and acknowledgment | `src/segments.ts` | `DRAFT` | Batch of finals identified by (`streamEpoch`, `providerResultId`) with relative times and text; per-item results `SAVED`, `DUPLICATE` or `REJECTED` (reasons `EPOCH_NOT_ISSUED`, `IDENTITY_CONFLICT`). Placeholder bounds: 25 finals per batch, 2000 characters, 128-character result ID. The idempotency key header is outside the body schema and still needs team agreement (decision queue blocker 4). |
-| Completion and deletion responses | — | To do | |
+| Completion request and response | `src/completion.ts` | `DRAFT` | Empty request body. The response is the updated session, which must be in state `COMPLETED` and carry `completedAt`. Repeating the request should return the same session (idempotent). |
+| Deletion | — | No schema | `DELETE /v1/sessions/{id}` has no body. Success is `204 No Content`; reads are denied immediately and removal is retried afterward. |
 | Rename session | — | Open | Not in the ADR-011 journey; confirm whether it is in Phase 1 before adding. |
 
 ### Design notes
@@ -57,7 +58,9 @@ Tick an item off, and note the decision here, once the team has settled it. Unti
 - [ ] **Error message cap and HTTP statuses** (`src/errors.ts`): 200 characters is a placeholder; the code-to-status mapping is undecided.
 - [ ] **Strict schemas versus additive changes**: `z.strictObject` rejects unknown response fields, which conflicts with "additive changes stay in v1" in `API_CONTRACTS.md`.
 - [ ] **Rename in Phase 1**: not in the ADR-011 journey; add a schema only if it is in scope.
-- [ ] **Schemas still to write**: completion and deletion responses.
+- [ ] **Deleting an already-deleted session** (`DELETE`): return `204` again (idempotent) or `NOT_FOUND`? Undecided. Proposed: `NOT_FOUND`, since a deleting session is already unreadable and a foreign ID must look the same as a missing one.
+- [ ] **Completion details** (`src/completion.ts`): the request body is empty for now; decide whether completion needs any input. Also decide what happens when completing a session in `CREATED` (never streamed) or `FAILED`: allowed, or `STATE_CONFLICT`?
+- [ ] **Status code for success responses**: `204` for delete and the codes for create (`201` or `200`) are assumed, not agreed.
 - [ ] **Handler duties the schemas cannot enforce**: `Cache-Control: no-store` on the stream-URL response, ownership and state checks, epoch rules, parsing responses before returning them, and never logging URLs, tokens or transcript text.
 
 ### Change history
@@ -69,3 +72,4 @@ Tick an item off, and note the decision here, once the team has settled it. Unti
 | 2026-11-06 | Added draft stream-URL request and response schemas and tests. |
 | 2026-11-06 | Added draft final-segment upload request and per-item response schemas and tests. |
 | 2026-11-06 | Added the "Open items to revisit" checklist covering every placeholder and undecided value. |
+| 2026-11-06 | Added draft completion request and response schemas and tests; documented delete as a bodiless `204`. |

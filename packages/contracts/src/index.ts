@@ -1,3 +1,5 @@
 export * from './audio-format.js';
 export * from './errors.js';
+export * from './segments.js';
 export * from './session.js';
+export * from './stream-url.js';

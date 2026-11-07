@@ -1,6 +1,6 @@
 # Frontend — Person 1 Phase 1
 
-Status: workspace boundary only; no React application or browser capture implementation exists.
+Status: React UI, AudioWorklet capture, direct-stream adapter, and a clearly labeled local provider simulation exist. AWS signing, final uploads, persistence, and deployed integration remain pending.
 
 ## Initial deliverable
 
@@ -51,8 +51,8 @@ The active design in the repository is **Option A (ADR-010)**:
 | Application | React/TypeScript/Vite dashboard, login screens, captions, mock history | Connect live data and verify accessible browser behavior |
 | Authentication | `src/auth/cognito.ts`: AWS Amplify sign-up, confirmation, sign-in, sign-out, access-token retrieval | Cognito configuration; team-approved auth flow and API JWT authorizer |
 | HTTP API | `src/services/teamApi.ts`: proposed `/v1` routes, bearer auth, HTTPS enforcement | Approved Zod schemas; deployed Lambda handlers; response parsing and UI wiring |
-| Recording | `src/audio/microphone.ts` + `public/worklets/pcm-processor.js` | Connect PCM output to the reviewed stream client; browser testing |
-| Streaming | `src/services/streamPort.ts`: `StreamUIAdapter` interface and intentionally failing `PendingStreamAdapter` | Person 3's real `@live-transcription/stream-client` interface and implementation |
+| Recording | `src/audio/microphone.ts` + `public/worklets/pcm-processor.js` | Approved-browser testing and consent review |
+| Streaming | `DirectStreamAdapter` routes microphone PCM through Person 3's real client; mock mode uses a clearly labeled local fake provider | Accepted Zod stream-capability parser and real signed-URL browser test |
 | Captions | `src/lib/viewModels.ts`: `partial`, `final-observed`, `saving`, `save-acknowledged`, `save-failed` | Map shared contract results into display states; real save acknowledgments |
 | History/export | Mock-only UI and TXT sample download | Backend list/detail/rename/delete and authorized S3 export downloads |
 | Uploaded audio files | Planned/disabled UI feature | Separate team-approved batch-upload architecture and endpoints |
@@ -219,7 +219,8 @@ Record the **AWS Region, browser/version, time, test dataset provenance, observe
 | Browser shows CORS error | Actual origin (`127.0.0.1` vs `localhost`), OPTIONS preflight, `Authorization`/`Content-Type`, stage and method configuration |
 | 404 / wrong API route | `VITE_API_BASE_URL` must be the root/stage URL; `TeamApi` already appends `/v1` |
 | Mic permission denied | HTTPS/loopback origin, OS privacy settings, browser permissions, user consent |
-| No live captions | `PendingStreamAdapter` has not been replaced; Person 3's package, signer response and WebSocket protocol must be integrated |
+| No local simulated captions | Allow microphone permission, remain in mock mode, and verify the AudioWorklet loaded from the loopback origin |
+| No real AWS captions | Person 2's accepted stream-capability schema and signer response are not integrated yet |
 | Captions appear but history is empty | Browser-only finals are not durable; inspect `/segments` response and DynamoDB acknowledgment |
 | Transcript download unavailable | Check completion status and private S3 export readiness; do not assume final segment save equals export ready |
 | Tests cannot import `@live-transcription/contracts` | `npm run build --workspace @live-transcription/contracts` before `npm test` on a clean clone |

@@ -10,15 +10,14 @@ export interface LiveCaptionEvent {
   phase: Extract<CaptionPhase, 'partial' | 'final-observed'>;
 }
 
+export interface StreamUIHandlers {
+  onCaption: (event: LiveCaptionEvent) => void;
+  onFailure: (message: string) => void;
+  onDisconnected: () => void;
+}
+
 export interface StreamUIAdapter {
-  start(
-    sessionId: string,
-    handlers: {
-      onCaption: (event: LiveCaptionEvent) => void;
-      onFailure: (message: string) => void;
-      onDisconnected: () => void;
-    },
-  ): Promise<void>;
+  start(sessionId: string, handlers: StreamUIHandlers): Promise<void>;
   stop(): Promise<void>;
 }
 

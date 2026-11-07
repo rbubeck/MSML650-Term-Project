@@ -1,6 +1,6 @@
 # Phase 1 Direct Transcribe Streaming Protocol
 
-Status: browser-client implementation guide; no client or live browser test exists.
+Status: browser-client implementation guide. EventStream framing, fake-backed WebSocket lifecycle behavior, and a browser-local microphone integration path are implemented; control-API integration and a live AWS browser test do not yet exist.
 
 The application defines no custom audio WebSocket or audio header. The browser opens the short-lived `wss://transcribestreaming.<region>.amazonaws.com:8443/stream-transcription-websocket` URL returned by the API and follows Amazon's WebSocket/EventStream protocol. Do not copy the separate HTTP/2 per-frame signing procedure.
 
@@ -17,6 +17,10 @@ The application defines no custom audio WebSocket or audio header. The browser o
 Expose a small UI-facing interface for connection state, partial result, final result, and safe error. Provider payloads do not enter shared application contracts.
 
 Partials are ephemeral. A final includes the provider result identity, stream epoch, relative timing, and text needed by the HTTPS upload. The stream client emitting a final does not mean it is saved; Person 1 shows durable status only after API acknowledgment.
+
+`TranscribeStreamClient` is the current Person 1 handoff. `start` accepts only the sensitive supplied WSS URL and API-authorized positive `streamEpoch`; `sendAudio` accepts PCM bytes; handlers receive connection state, epoch-scoped partial/final results, safe errors, and disconnect state; `stop` drains accepted bounded frames and sends the empty provider end frame; `cancel` closes immediately. Reconnect is a new `start` call with a fresh URL and epoch.
+
+The current defaults bound both browser `WebSocket.bufferedAmount` and the package queue at 65,536 bytes, poll a slow socket every 20 ms, and bound connect/stop waits at five seconds. These are initial integration values, not production-tuning evidence.
 
 ## Stop and reconnect
 

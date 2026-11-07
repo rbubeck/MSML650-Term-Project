@@ -1,36 +1,35 @@
 # Backend / Auth Decision Proposal (Person 2)
 
-Status: `PROPOSED`. Nothing here is accepted until the team agrees and it is recorded in an ADR or the shared contracts. Aim: decide the items below so Persons 1, 3 and 4 can build against one contract. Related: [API_CONTRACTS.md](../../API_CONTRACTS.md), [decision-queue.md](decision-queue.md), [security.md](../security.md).
+Status: `PROPOSED`, aligned with [ADR-011](../adr/011-phase-1-live-mvp.md) and the Phase 1 blockers in [decision-queue.md](decision-queue.md). Nothing here is accepted until the team agrees and it is recorded in an ADR or the shared contracts. Related: [API_CONTRACTS.md](../../API_CONTRACTS.md), [data-model.md](../data-model.md), [security.md](../security.md).
 
-## A. Needed to start the first end-to-end slice
+Already decided by ADR-011, so not reopened here: session states `CREATED`, `STREAMING`, `COMPLETED`, `DELETING` (plus optional `FAILED`); reconnect creates a new stream epoch inside the same session; DynamoDB only (no S3 in Phase 1); `client-uploaded` provenance; recorded upload, S3 export, derived features and load testing are deferred.
 
-| # | Decision | Proposal | Sign-off |
+## Proposals for the six Phase 1 blockers
+
+| # | Queue blocker | Proposal | Sign-off |
 |---|---|---|---|
-| 1 | AWS account, Region, budget, who creates shared resources | One shared account in `us-east-1`. Budgets alert with an action (an alert alone is not a cap). One named person creates shared resources; everyone else asks first. | All, P4 leads |
-| 2 | Cognito setup | One shared User Pool. Public app client, no secret. SRP and refresh-token flows on. Email verification by code, no MFA. The API accepts the **access token**. Owner key is `sub`. | P1, P2 |
-| 3 | API type and CORS | API Gateway HTTP API with a Cognito JWT authorizer. Allowed origins `http://localhost:5173` and `http://127.0.0.1:5173`. Allowed headers `Authorization`, `Content-Type`, and the idempotency header. | P1, P2, P4 |
-| 4 | Session states | `created`, `active`, `ended`, `completed`, `failed`, `deleted`. The API owns every transition; the browser only requests them. | P1, P2, P3, P4 |
-| 5 | Idempotency and segment identity | One `Idempotency-Key` header on create and segment upload. A segment is identified by `sessionId` + `streamEpoch` + `providerResultId`. Same key and same body returns the original response. Same key and a different body returns 409. | P1, P2, P3, P4 |
-| 6 | Stream-URL policy | Expiry 60 s or less (AWS maximum is 300 s). Fixed parameters only: PCM, 16 kHz, approved languages. `streamEpoch` increments on each issuance. Per-user rate limit, one active session per user. | P2, P3, P4 |
-| 7 | Error codes and statuses | 401 `UNAUTHORIZED`, 404 `NOT_FOUND`, 400 `INVALID_INPUT`, 409 `STATE_CONFLICT` and `EXPORT_NOT_READY`, 429 `RATE_LIMITED` and `CAPACITY_LIMIT`, 502 `SIGNING_FAILED`, 500 `INTERNAL_ERROR`. Body shape stays `{ "error": { "code", "message" } }`. | P1, P2 |
-| 8 | Zod schema freeze (smallest subset) | Freeze first: create-session, session, error, segment-upload. List, rename and export schemas follow. | P1, P2, P3, P4 |
+| 1 | Integration environment | One shared account in `us-east-1` (the earlier experiment used it; verify Transcribe streaming and quota). A small Budgets alert with an action, since an alert alone is not a cap. One named deployer and one cleanup owner. | All, P4 leads |
+| 2 | Cognito / API configuration | One shared User Pool with a public app client (no secret), SRP and refresh-token flows enabled, email code verification, no MFA. API Gateway HTTP API with a JWT authorizer on every `/v1` route. The API accepts the **access token**; owner is `sub`. CORS origins `http://localhost:5173` and `http://127.0.0.1:5173`; headers `Authorization`, `Content-Type`, and the idempotency header. The authorizer's client/audience setting must be verified against real access-token claims. | P1, P2, P4 |
+| 3 | Stream URL policy | Start with the proposed 60 s connection-start expiry and verify it. Fixed parameters only: approved language, PCM, 16 kHz, one Region. Per-user issuance limit. Each issuance increments the session's `streamEpoch`. | P2, P3, P4 |
+| 4 | Minimum contract freeze | `Idempotency-Key` header on create and segment upload. A final is identified by session, epoch and provider result ID. An identical retry returns the original result; reuse of a key with a different body returns 409; an upload with a stale epoch is rejected. Error body `{ "error": { "code", "message" } }`. Proposed statuses: 401 `UNAUTHORIZED`, 404 `NOT_FOUND`, 400 `INVALID_INPUT`, 409 `STATE_CONFLICT`, 429 `RATE_LIMITED` / `CAPACITY_LIMIT`, 502 `SIGNING_FAILED`, 500 `INTERNAL_ERROR`. Freeze first: create-session, session, error, segment-upload. Text and batch bounds are set in the schema and enforced in Lambda. | P1, P2, P3, P4 |
+| 5 | DynamoDB minimum (P4 leads, P2 reviews) | Records per [data-model.md](../data-model.md): session, final segment, idempotency result. Owner-scoped newest-first history query. Every write conditional on ownership and, for finals, on uniqueness. Foreign session IDs return `NOT_FOUND`. | P2, P4 |
+| 6 | Test data and the one-hour run | Approved synthetic or licensed audio. A bounded, separately authorized one-hour acceptance run with a stated cost cap. | All, P5 leads |
 
-## B. Needed soon, not blocking the first slice
-
-| # | Decision | Proposal |
-|---|---|---|
-| 9 | Upload bounds | Small batch size, text length, segments per session and retry window, written into the schema and enforced in Lambda. |
-| 10 | DynamoDB layout (P4 leads, P2 reviews) | Partition on owner `sub`, sort on session or segment. All writes conditional on ownership. |
-| 11 | Export and download | After an owner check, the API returns a short-lived presigned S3 GET URL. Browsers get no general S3 access. |
-| 12 | Deletion and retention | Deny reads immediately, remove data in the background. Pick a retention period and the consent wording. |
-| 13 | Scope: file upload and analysis | Decide whether batch audio upload and a post-session analysis step (e.g. Comprehend) are in or out. The frontend currently shows upload as "Planned". |
-| 14 | Deployment method | The repo is Console-first with no CDK. Agree how Lambda code is deployed and by whom. |
-| 15 | Logging and monitoring | Allow-listed log events only. Never log URLs, tokens or transcript text. One alarm on signing volume. |
+## Backend risks specific to a one-hour session
+- Cognito access tokens commonly expire after about an hour. Confirm the frontend refreshes the token before signing and upload calls, and test an upload after expiry.
+- Each reconnect needs a fresh signed URL and a new epoch. Signing limits must allow normal reconnects without allowing abuse.
+- Signed URLs are replayable until expiry, so cost exposure is managed by short expiry, limits and monitoring, not guaranteed by the design.
 
 ## Open questions for the team
 - Is `us-east-1` acceptable for data residency and Transcribe availability?
 - Who owns the shared AWS account and approves spend?
-- Is file upload in scope for the final demo?
+- Rename is in the Phase 1 route table of `API_CONTRACTS.md`, so a draft schema exists. Confirm it should stay, and in which states renaming is allowed.
+- What does "stale epoch" mean for uploads? Proposed: accept uploads for any epoch the API has issued (at or below the current one) while the session is open, so finals the browser received before a reconnect are not discarded; reject a higher epoch and uploads to completed or deleting sessions.
+- Which `Idempotency-Key` details do we adopt: header name, routes, retention window, and the response to a reused key with a different body?
+- Are the draft bounds acceptable (25 finals per batch, 2000 characters of text, 128-character IDs, page size 20 up to 50) and are `EPOCH_NOT_ISSUED` and `IDENTITY_CONFLICT` the right rejection reasons?
+- `API_CONTRACTS.md` says a conflicting reuse of a segment identity returns `STATE_CONFLICT` for the whole request. The draft schema returns a per-item `IDENTITY_CONFLICT` so a browser can see which final of a batch conflicted. Which do we adopt? If the per-item result is chosen, `API_CONTRACTS.md` needs a small amendment.
+- Should issuing a stream URL move a session from `CREATED` to `STREAMING` (as the draft handler does), or should that happen on the first accepted segment? And is it acceptable that epoch numbers can be skipped when signing fails after allocation? See "Deviations and assumptions" in [backend/api/README.md](../../backend/api/README.md).
+- Full list of placeholder values and handler duties: see "Open items to revisit" in [packages/contracts/README.md](../../packages/contracts/README.md).
 
 ## What Person 2 will do next
-Write a non-secret Cognito config note (Region, flows, token lifetimes, observed claims), draft the schemas for item 8, and scaffold the handler interfaces with fakes and owner-isolation tests. Shared AWS resources will not be created until item 1 is agreed.
+Write a non-secret Cognito config note (Region, flows, token lifetimes, observed claims), draft the schemas for blocker 4, and scaffold the handler interfaces with fakes and owner-isolation, duplicate-upload and stale-epoch tests. Shared AWS resources will not be created until blocker 1 is agreed.

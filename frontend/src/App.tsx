@@ -29,14 +29,14 @@ import {
   Trash2,
   UserCircle,
   Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { cognitoAuth } from './auth/cognito';
 import type { AccountView } from './auth/cognito';
 import { config, hasCloudConfig } from './config';
-import { MicrophoneCapture } from './audio/microphone';
 import { formatClock } from './lib/viewModels';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
+import { DirectStreamAdapter } from './services/directStreamAdapter';
+import { createLocalStreamingAdapter } from './services/fakeTranscribeSocket';
 import { exportDemoTranscript, MockSessionStore } from './services/mockSessions';
 import { TeamApi } from './services/teamApi';
 
@@ -268,7 +268,9 @@ export function App() {
   const [query, setQuery] = useState('');
   const storeRef = useRef(new MockSessionStore());
   const [version, setVersion] = useState(0);
-  const [selectedId, setSelectedId] = useState('demo-architecture');
+  const [selectedId, setSelectedId] = useState(
+    config.mode === 'aws' ? config.liveSessionId : 'demo-architecture',
+  );
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [toast, setToast] = useState('');
@@ -276,7 +278,7 @@ export function App() {
   const [micError, setMicError] = useState('');
   const [micChunks, setMicChunks] = useState(0);
   const [micNativeRate, setMicNativeRate] = useState(0);
-  const micRef = useRef<MicrophoneCapture | null>(null);
+  const micRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const [liveDemoCaptions, setLiveDemoCaptions] = useState<CaptionView[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [apiHealth, setApiHealth] = useState<'unknown' | 'checking' | 'reachable' | 'unavailable'>(
@@ -353,29 +355,71 @@ export function App() {
       await micRef.current?.stop();
       micRef.current = null;
       setMicStatus('idle');
-      setToast('Microphone stopped. Captured PCM was not stored or uploaded.');
+      setToast(
+        config.mode === 'mock'
+          ? 'Microphone stopped. Captured PCM stayed in the local simulation.'
+          : 'Live transcription stopped. Final captions are not saved yet.',
+      );
       return;
     }
     setMicStatus('requesting');
     setMicError('');
     setMicChunks(0);
-    const capture = new MicrophoneCapture(
-      () => {
-        /* No raw PCM is persisted or transmitted in this scaffold. */
-      },
-      (status) => {
+    try {
+      const onStatus = (status: { receivedChunks: number; sampleRate: number }) => {
         setMicChunks(status.receivedChunks);
         setMicNativeRate(status.sampleRate);
-      },
-    );
-    try {
-      await capture.start();
-      micRef.current = capture;
+      };
+      if (!selectedId)
+        throw new Error('A session is required before live transcription can start.');
+
+      const adapter =
+        config.mode === 'mock'
+          ? createLocalStreamingAdapter(onStatus)
+          : new DirectStreamAdapter({
+              requestCapability: async (sessionId) => {
+                const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+                const capability = await api.requestStreamCapability(sessionId);
+                return { url: capability.url, streamEpoch: capability.streamEpoch };
+              },
+              onCaptureStatus: onStatus,
+            });
+
+      await adapter.start(selectedId, {
+        onCaption: (event) => {
+          const caption: CaptionView = {
+            id: `${event.streamEpoch}:${event.resultId}`,
+            speaker: config.mode === 'mock' ? 'Local simulation' : 'Live transcription',
+            timestampMs: event.startMs,
+            text: event.text,
+            phase: event.phase,
+          };
+          setLiveDemoCaptions((current) => [
+            ...current.filter((item) => item.id !== caption.id),
+            caption,
+          ]);
+        },
+        onFailure: (message) => {
+          micRef.current = null;
+          setMicError(message);
+          setMicStatus('error');
+        },
+        onDisconnected: () => {
+          micRef.current = null;
+          setMicError(
+            'The transcription stream was interrupted. Start again to request a new URL.',
+          );
+          setMicStatus('error');
+        },
+      });
+      micRef.current = adapter;
       setMicStatus('recording');
-    } catch {
+    } catch (error: unknown) {
       micRef.current = null;
       setMicError(
-        'Microphone access was blocked or is unavailable. Check browser permissions and HTTPS/localhost.',
+        error instanceof Error
+          ? error.message
+          : 'Live transcription could not start. Check the API and microphone configuration.',
       );
       setMicStatus('error');
     }
@@ -585,8 +629,8 @@ export function App() {
             </Banner>
           ) : (
             <Banner tone="warn">
-              <strong>AWS integration:</strong> Cognito is configurable; API routes remain proposed,
-              and the shared streaming client is not yet implemented.
+              <strong>AWS integration:</strong> live streaming is wired for an owned session. Final
+              captions remain browser-only until the segment-save API is connected.
             </Banner>
           )}
 
@@ -743,8 +787,9 @@ export function App() {
                       : 'Ready to test your microphone?'}
                   </h2>
                   <p>
-                    With your permission, audio is resampled off the UI thread. No audio is
-                    transmitted in this scaffold.
+                    {config.mode === 'mock'
+                      ? 'With your permission, audio is resampled and sent only to the local simulation.'
+                      : 'With your permission, audio is resampled and streamed directly to Amazon Transcribe.'}
                   </p>
                   <div className="live-stats">
                     <div>
@@ -778,7 +823,11 @@ export function App() {
                     ) : (
                       <>
                         <Mic size={18} />{' '}
-                        {micStatus === 'requesting' ? 'Requesting permission…' : 'Test microphone'}
+                        {micStatus === 'requesting'
+                          ? 'Connecting…'
+                          : config.mode === 'mock'
+                            ? 'Test microphone'
+                            : 'Start live transcription'}
                       </>
                     )}
                   </button>
@@ -789,7 +838,7 @@ export function App() {
                   )}
                   <p className="consent-note">
                     <LockKeyhole size={13} /> Microphone access begins only when you press the
-                    button. Captured PCM is discarded after the check.
+                    button. Raw audio is not stored by this application.
                   </p>
                 </section>
                 <section className="panel captions-panel">
@@ -799,7 +848,12 @@ export function App() {
                       <p>Reviewable transcript states</p>
                     </div>
                     <div className="live-pill">
-                      <span /> {config.mode === 'mock' ? 'Simulated' : 'Not connected'}
+                      <span />{' '}
+                      {config.mode === 'mock'
+                        ? 'Simulated'
+                        : micStatus === 'recording'
+                          ? 'Connected'
+                          : 'Ready'}
                     </div>
                   </div>
                   <div className="captions-scroller" aria-live="polite">
@@ -828,13 +882,9 @@ export function App() {
                         <Sparkles size={15} /> Play sample captions
                       </button>
                     ) : (
-                      <button
-                        className="secondary small"
-                        disabled
-                        title="Pending Person 3 stream client and accepted contracts"
-                      >
-                        <WifiOff size={15} /> Streaming integration pending
-                      </button>
+                      <span className="mode-label">
+                        {micStatus === 'recording' ? 'Receiving AWS results' : 'Start when ready'}
+                      </span>
                     )}
                   </div>
                 </section>
@@ -1017,10 +1067,10 @@ export function App() {
                   </div>
                   <h3>Streaming</h3>
                   <p>
-                    AudioWorklet is prepared. EventStream and signed connections belong exclusively
-                    to the reviewed stream-client package.
+                    AudioWorklet-to-stream-client routing is locally fake-tested. AWS mode still
+                    requires the accepted signing response from the control API.
                   </p>
-                  <span className="tiny-status warning">INTEGRATION PENDING</span>
+                  <span className="tiny-status warning">LOCAL FAKE READY</span>
                 </section>
                 <section className="panel setting-card">
                   <div className="setting-icon">

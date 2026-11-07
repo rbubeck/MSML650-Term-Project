@@ -8,7 +8,8 @@
     "jsx": "react-jsx",
     "types": ["vite/client", "node"],
     "paths": {
-      "@live-transcription/contracts": ["../packages/contracts/src/index.ts"]
+      "@live-transcription/contracts": ["../packages/contracts/src/index.ts"],
+      "@live-transcription/stream-client": ["../packages/stream-client/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

@@ -1,6 +1,6 @@
 # Option A Phase 1 Integration Plan
 
-Status: minimum team implementation plan; no integrated Phase 1 slice or AWS deployment exists.
+Status: minimum team implementation plan. The narrow authenticated live-caption slice was smoke-verified with a manual `us-east-2` development stack on 2026-11-07; persistence and full MVP acceptance remain open.
 
 ## Build order
 
@@ -9,6 +9,8 @@ Status: minimum team implementation plan; no integrated Phase 1 slice or AWS dep
 3. **Local integration — Person 5 coordinates:** connect the frontend, fake stream client, fake API, and fake persistence; prove save acknowledgment, history, reconnect epoch, ownership, and deletion.
 4. **Approved AWS integration — Person 4 coordinates:** configure the minimum resources, replace fakes one boundary at a time, and run a short smoke path.
 5. **MVP acceptance — Person 5 reports:** execute the bounded one-hour live test plus failure/isolation checks and record actual browser, Region, cost, and limitations.
+
+The short-smoke portion of step 4 has succeeded for one configured user/session: Cognito → JWT-authorized API Gateway → Lambda presigner → direct browser Transcribe → live captions. This did not complete the local/full journey in steps 3–5 because segment durability, history, reconnect, isolation, and deletion are still absent.
 
 ## Initial assignments
 

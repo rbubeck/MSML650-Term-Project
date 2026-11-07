@@ -1,6 +1,6 @@
 # Phase 1 Direct Transcribe Streaming Protocol
 
-Status: browser-client implementation guide; no client or live browser test exists.
+Status: browser-client implementation guide. EventStream framing, fake-backed WebSocket lifecycle behavior, and the control-API/browser microphone integration are implemented. A direct AWS browser stream produced real captions in `us-east-2` on 2026-11-07; reconnect and one-hour evidence do not yet exist.
 
 The application defines no custom audio WebSocket or audio header. The browser opens the short-lived `wss://transcribestreaming.<region>.amazonaws.com:8443/stream-transcription-websocket` URL returned by the API and follows Amazon's WebSocket/EventStream protocol. Do not copy the separate HTTP/2 per-frame signing procedure.
 
@@ -18,6 +18,10 @@ Expose a small UI-facing interface for connection state, partial result, final r
 
 Partials are ephemeral. A final includes the provider result identity, stream epoch, relative timing, and text needed by the HTTPS upload. The stream client emitting a final does not mean it is saved; Person 1 shows durable status only after API acknowledgment.
 
+`TranscribeStreamClient` is the current Person 1 handoff. `start` accepts only the sensitive supplied WSS URL and API-authorized positive `streamEpoch`; `sendAudio` accepts PCM bytes; handlers receive connection state, epoch-scoped partial/final results, safe errors, and disconnect state; `stop` drains accepted bounded frames and sends the empty provider end frame; `cancel` closes immediately. Reconnect is a new `start` call with a fresh URL and epoch.
+
+The current defaults bound both browser `WebSocket.bufferedAmount` and the package queue at 65,536 bytes, poll a slow socket every 20 ms, and bound connect/stop waits at five seconds. These are initial integration values, not production-tuning evidence.
+
 ## Stop and reconnect
 
 - Stop ends microphone intake, drains only the bounded accepted queue, sends the provider's empty audio end message, receives available terminal results within a bounded deadline, and closes.
@@ -27,6 +31,8 @@ Partials are ephemeral. A final includes the provider result identity, stream ep
 - Never reuse a URL intentionally or infer active-stream duration from URL expiry.
 
 ## One-hour target
+
+The first short development smoke verified 48 kHz browser input resampling to 16 kHz mono PCM, successful EventStream audio delivery, and partial/final-observed result decoding. It did not verify the one-hour target, reconnect, tab suspension, device changes, long-run queue behavior, or durable final acknowledgment.
 
 Use deterministic accelerated/soak tests locally for queue and cleanup behavior. The approved one-hour browser run verifies pacing, memory, save acknowledgments, visibility/network interruption behavior, and stop. One run is MVP evidence, not a production SLO.
 

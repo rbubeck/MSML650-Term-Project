@@ -1,6 +1,6 @@
 # Phase 1 Application Contracts
 
-Status: minimum integration contract for Zod implementation and owner review. API prefix: `/v1`. No HTTP handlers or structured schemas are implemented yet.
+Status: minimum integration contract and owner-review baseline. API prefix: `/v1`. Zod schemas exist for the proposed Phase 1 surface, and `POST /v1/sessions/{sessionId}/stream-url` is implemented and development-smoke-verified; the other HTTP routes remain unimplemented.
 
 Zod schemas in `packages/contracts` are the source of truth once implemented. This file fixes the shared Phase 1 semantics so owners do not invent local variants. Amazon EventStream is a provider protocol internal to `packages/stream-client`, not an application WebSocket contract.
 

@@ -34,7 +34,8 @@ import {
 import { cognitoAuth } from './auth/cognito';
 import type { AccountView } from './auth/cognito';
 import { config, hasCloudConfig } from './config';
-import { MicrophoneCapture } from './audio/microphone';
+import { MeetingSessionCapture, visualLevel } from './audio/meetingCapture';
+import type { MeetingCaptureMode } from './audio/meetingCapture';
 import { formatClock } from './lib/viewModels';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
 import { exportDemoTranscript, MockSessionStore } from './services/mockSessions';
@@ -276,7 +277,16 @@ export function App() {
   const [micError, setMicError] = useState('');
   const [micChunks, setMicChunks] = useState(0);
   const [micNativeRate, setMicNativeRate] = useState(0);
-  const micRef = useRef<MicrophoneCapture | null>(null);
+  const [captureMode, setCaptureMode] = useState<MeetingCaptureMode>('both');
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [micInputLevel, setMicInputLevel] = useState(0);
+  const [meetingInputLevel, setMeetingInputLevel] = useState(0);
+  const micDisplayLevel = visualLevel(micInputLevel);
+  const meetingDisplayLevel = visualLevel(meetingInputLevel);
+  const mixedDisplayLevel = visualLevel(
+    captureMode === 'both' ? Math.max(micInputLevel, meetingInputLevel) : meetingInputLevel,
+  );
+  const micRef = useRef<MeetingSessionCapture | null>(null);
   const [liveDemoCaptions, setLiveDemoCaptions] = useState<CaptionView[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [apiHealth, setApiHealth] = useState<'unknown' | 'checking' | 'reachable' | 'unavailable'>(
@@ -308,6 +318,17 @@ export function App() {
       void micRef.current?.stop();
     };
   }, []);
+
+  useEffect(() => {
+    if (page !== 'live' && micRef.current) {
+      const active = micRef.current;
+      micRef.current = null;
+      void active.stop();
+      setMicStatus('idle');
+      setMicInputLevel(0);
+      setMeetingInputLevel(0);
+    }
+  }, [page]);
 
   function selectSession(id: string) {
     setSelectedId(id);
@@ -350,33 +371,64 @@ export function App() {
 
   async function toggleMicrophone() {
     if (micStatus === 'recording') {
-      await micRef.current?.stop();
+      setMicStatus('requesting');
+      const active = micRef.current;
       micRef.current = null;
-      setMicStatus('idle');
-      setToast('Microphone stopped. Captured PCM was not stored or uploaded.');
+      try {
+        await active?.stop();
+        setMicStatus('idle');
+        setToast('Local capture ended. No audio was stored or uploaded.');
+      } catch {
+        setMicStatus('error');
+        setMicError('Unable to stop audio capture cleanly. Close the browser sharing control.');
+      }
+      setMicInputLevel(0);
+      setMeetingInputLevel(0);
+      return;
+    }
+    if (!consentGiven) {
+      setMicError('Confirm participant notification and permission before starting.');
       return;
     }
     setMicStatus('requesting');
     setMicError('');
     setMicChunks(0);
-    const capture = new MicrophoneCapture(
+    setMicNativeRate(0);
+    setMicInputLevel(0);
+    setMeetingInputLevel(0);
+    const capture = new MeetingSessionCapture(
+      captureMode,
       () => {
-        /* No raw PCM is persisted or transmitted in this scaffold. */
+        // PCM is intentionally discarded during local testing.
+        // Person 3's reviewed stream-client adapter will consume it here later.
       },
       (status) => {
         setMicChunks(status.receivedChunks);
         setMicNativeRate(status.sampleRate);
+        setMicInputLevel((previous) => Math.max(status.micLevel, previous * 0.35));
+        setMeetingInputLevel((previous) => Math.max(status.meetingLevel, previous * 0.35));
+      },
+      () => {
+        if (micRef.current !== capture) return;
+        micRef.current = null;
+        setMicStatus('idle');
+        setMicInputLevel(0);
+        setMeetingInputLevel(0);
+        setMicError('Meeting audio sharing ended. Select a source and start again.');
       },
     );
+    micRef.current = capture;
     try {
+      // No await before this call: the browser picker requires a click gesture.
       await capture.start();
-      micRef.current = capture;
-      setMicStatus('recording');
-    } catch {
+      if (micRef.current === capture) setMicStatus('recording');
+    } catch (error) {
+      if (micRef.current !== capture) return;
       micRef.current = null;
-      setMicError(
-        'Microphone access was blocked or is unavailable. Check browser permissions and HTTPS/localhost.',
-      );
+      await capture.stop();
+      setMicInputLevel(0);
+      setMeetingInputLevel(0);
+      setMicError(error instanceof Error ? error.message : 'Unable to start audio capture.');
       setMicStatus('error');
     }
   }
@@ -723,28 +775,127 @@ export function App() {
                       <span
                         className={`status-dot ${micStatus === 'recording' ? 'recording' : ''}`}
                       />
-                      {micStatus === 'recording' ? 'Microphone recording' : 'Microphone idle'}
+                      {micStatus === 'recording' ? 'Meeting audio capture active' : 'Capture ready'}
                     </span>
                     <span className="mode-label">16 kHz • Mono • PCM 16-bit</span>
+                  </div>
+                  <div className="capture-picker">
+                    <h2>Start a live session</h2>
+                    <p className="capture-picker-subtitle">
+                      Choose which audio to capture for transcription.
+                    </p>
+                    <div
+                      className="capture-mode-options"
+                      role="radiogroup"
+                      aria-label="Audio sources"
+                    >
+                      <label
+                        className={`capture-mode-option ${captureMode === 'both' ? 'selected' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="meeting-capture-mode"
+                          value="both"
+                          checked={captureMode === 'both'}
+                          disabled={micStatus !== 'idle' && micStatus !== 'error'}
+                          onChange={() => setCaptureMode('both')}
+                        />
+                        <span className="capture-mode-copy">
+                          <strong>Microphone + meeting audio</strong>
+                          <small>
+                            Capture your voice and everyone speaking through the meeting
+                          </small>
+                        </span>
+                      </label>
+                      <label
+                        className={`capture-mode-option ${captureMode === 'meeting' ? 'selected' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="meeting-capture-mode"
+                          value="meeting"
+                          checked={captureMode === 'meeting'}
+                          disabled={micStatus !== 'idle' && micStatus !== 'error'}
+                          onChange={() => setCaptureMode('meeting')}
+                        />
+                        <span className="capture-mode-copy">
+                          <strong>Meeting audio only</strong>
+                          <small>Capture sound from a shared tab, window, or screen</small>
+                        </span>
+                      </label>
+                    </div>
+                    <div className="capture-source-explainer" role="note">
+                      <AudioLines size={17} aria-hidden="true" />
+                      <span>
+                        Your browser will ask you to select a meeting tab, window, or screen.{' '}
+                        <strong>Turn on Share audio.</strong> If no audio is shared, capture won't
+                        start.
+                      </span>
+                    </div>
+                    <label className="capture-consent">
+                      <input
+                        type="checkbox"
+                        checked={consentGiven}
+                        disabled={micStatus === 'requesting' || micStatus === 'recording'}
+                        onChange={(event) => setConsentGiven(event.target.checked)}
+                      />
+                      <span>
+                        I have informed the meeting participants and have permission to transcribe
+                        this conversation.
+                      </span>
+                    </label>
                   </div>
                   <div className={`record-visual ${micStatus === 'recording' ? 'active' : ''}`}>
                     <div className="record-circle">
                       <Mic size={38} />
                     </div>
-                    <div className="wave-bars" aria-hidden="true">
+                    <div className="wave-bars live-meter" aria-hidden="true">
                       {Array.from({ length: 23 }, (_, index) => (
-                        <span key={index} style={{ height: `${16 + ((index * 23) % 48)}px` }} />
+                        <span
+                          key={index}
+                          style={{
+                            height: `${6 + mixedDisplayLevel * (12 + ((index * 23) % 48))}px`,
+                          }}
+                        />
                       ))}
                     </div>
                   </div>
-                  <h2>
+                  <div className="capture-levels" aria-label="Live capture levels">
+                    {captureMode === 'both' && (
+                      <div
+                        className="capture-source-level"
+                        role="meter"
+                        aria-label="Microphone input level"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(micDisplayLevel * 100)}
+                      >
+                        <span>Mic input</span>
+                        <span className="capture-level-track" aria-hidden="true">
+                          <span style={{ width: `${Math.round(micDisplayLevel * 100)}%` }} />
+                        </span>
+                        <strong>{Math.round(micDisplayLevel * 100)}%</strong>
+                      </div>
+                    )}
+                    <div
+                      className="capture-source-level"
+                      role="meter"
+                      aria-label="Meeting audio input level"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(meetingDisplayLevel * 100)}
+                    >
+                      <span>Meeting audio</span>
+                      <span className="capture-level-track" aria-hidden="true">
+                        <span style={{ width: `${Math.round(meetingDisplayLevel * 100)}%` }} />
+                      </span>
+                      <strong>{Math.round(meetingDisplayLevel * 100)}%</strong>
+                    </div>
+                  </div>
+                  <p className="capture-status-copy">
                     {micStatus === 'recording'
-                      ? 'Microphone capture active'
-                      : 'Ready to test your microphone?'}
-                  </h2>
-                  <p>
-                    With your permission, audio is resampled off the UI thread. No audio is
-                    transmitted in this scaffold.
+                      ? 'Local audio capture is active. PCM is being prepared in memory only; Amazon Transcribe is not connected yet.'
+                      : 'Test your selected audio sources locally. CloudScribe does not upload or save raw audio in this mode.'}
                   </p>
                   <div className="live-stats">
                     <div>
@@ -768,7 +919,9 @@ export function App() {
                         ? 'danger recording-button'
                         : 'primary recording-button'
                     }
-                    disabled={micStatus === 'requesting'}
+                    disabled={
+                      micStatus === 'requesting' || (micStatus !== 'recording' && !consentGiven)
+                    }
                     onClick={() => void toggleMicrophone()}
                   >
                     {micStatus === 'recording' ? (
@@ -778,7 +931,9 @@ export function App() {
                     ) : (
                       <>
                         <Mic size={18} />{' '}
-                        {micStatus === 'requesting' ? 'Requesting permission…' : 'Test microphone'}
+                        {micStatus === 'requesting'
+                          ? 'Requesting permissions…'
+                          : 'Start local capture'}
                       </>
                     )}
                   </button>
@@ -788,10 +943,12 @@ export function App() {
                     </div>
                   )}
                   <p className="consent-note">
-                    <LockKeyhole size={13} /> Microphone access begins only when you press the
-                    button. Captured PCM is discarded after the check.
+                    <LockKeyhole size={13} /> Only the selected audio is mixed into the local PCM
+                    stream. Sharing video is required by the browser picker, but no video is
+                    processed or saved. Stop sharing at any time to end capture.
                   </p>
                 </section>
+
                 <section className="panel captions-panel">
                   <div className="panel-top">
                     <div>

@@ -1544,3 +1544,200 @@ a {
     transition: none !important;
   }
 }
+
+/* Local, browser-only microphone PCM level feedback. */
+.wave-bars.live-meter span,
+.record-visual.active .wave-bars.live-meter span {
+  animation: none;
+  transform: none;
+  transition:
+    height 90ms linear,
+    opacity 90ms linear;
+  opacity: 0.4;
+}
+.record-visual.active .wave-bars.live-meter span {
+  opacity: 0.95;
+}
+.mic-level-readout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 5px 0 18px;
+  font-size: 11px;
+  color: #a5b7d1;
+}
+.mic-level-readout strong {
+  min-width: 34px;
+  text-align: right;
+  color: #e8ecf4;
+}
+.mic-level-track {
+  display: block;
+  flex: 1;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #253550;
+}
+.mic-level-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8175ff, #61d6b0);
+  transition: width 90ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave-bars.live-meter span,
+  .mic-level-track > span {
+    transition: none;
+  }
+}
+
+/* Meeting + microphone: explicit, consent-first local audio selection. */
+.capture-picker {
+  margin: 14px 0 10px;
+}
+.capture-picker h2 {
+  margin-bottom: 5px;
+}
+.capture-picker-subtitle {
+  margin: 0 0 13px;
+  font-size: 13px;
+  color: #a7b7d1;
+}
+.capture-mode-options {
+  display: grid;
+  gap: 9px;
+}
+.capture-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #344563;
+  border-radius: 12px;
+  background: rgba(37, 50, 77, 0.3);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+.capture-mode-option.selected {
+  border-color: #8175ff;
+  background: rgba(129, 117, 255, 0.12);
+}
+.capture-mode-option input {
+  margin-top: 4px;
+  flex-shrink: 0;
+  accent-color: #8175ff;
+}
+.capture-mode-option:has(input:focus-visible) {
+  outline: 2px solid #a79aff;
+  outline-offset: 2px;
+}
+.capture-mode-option:has(input:disabled) {
+  cursor: default;
+  opacity: 0.8;
+}
+.capture-mode-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.capture-mode-copy strong {
+  font-size: 13px;
+  color: #eef2ff;
+}
+.capture-mode-copy small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #a5b7d1;
+}
+.capture-source-explainer {
+  display: flex;
+  gap: 10px;
+  margin-top: 13px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(76, 97, 140, 0.16);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #c5d2e9;
+  text-align: left;
+}
+.capture-source-explainer svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.capture-consent {
+  display: flex;
+  gap: 10px;
+  margin: 13px 0 8px;
+  align-items: flex-start;
+  color: #cbd4e6;
+  font-size: 12px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.capture-consent input {
+  flex-shrink: 0;
+  margin-top: 4px;
+  accent-color: #8175ff;
+}
+.capture-levels {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 13px;
+}
+.capture-source-level {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #b5c7df;
+}
+.capture-source-level > span:first-child {
+  min-width: 91px;
+}
+.capture-source-level strong {
+  min-width: 32px;
+  color: #edf2ff;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.capture-level-track {
+  flex: 1;
+  min-width: 15px;
+  height: 8px;
+  background: #253550;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.capture-level-track > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8175ff, #61d6b0);
+  transition: width 100ms linear;
+}
+.capture-status-copy {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #adbed4;
+  margin: 7px 0 15px;
+}
+.wave-bars.live-meter span,
+.record-visual.active .wave-bars.live-meter span {
+  animation: none;
+  transform: none;
+  transition: height 100ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-mode-option,
+  .capture-level-track > span,
+  .wave-bars.live-meter span {
+    transition: none;
+  }
+}

@@ -38,6 +38,7 @@ import { MeetingSessionCapture, visualLevel } from './audio/meetingCapture';
 import type { MeetingCaptureMode } from './audio/meetingCapture';
 import { formatClock } from './lib/viewModels';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
+import { TranscriptParagraphs } from './components/TranscriptParagraphs';
 import { exportDemoTranscript, MockSessionStore } from './services/mockSessions';
 import { TeamApi } from './services/teamApi';
 
@@ -93,8 +94,10 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
         setAuthPage('login');
         setError('Email verified. Sign in to continue.');
       }
-    } catch {
-      setError('Unable to complete this step. Verify your details and Cognito configuration.');
+    } catch (error: unknown) {
+      const errorName = error instanceof Error ? error.name : 'UnknownError';
+
+      setError(`Cognito sign-up failed: ${errorName}`);
     } finally {
       setBusy(false);
     }
@@ -961,9 +964,7 @@ export function App() {
                   </div>
                   <div className="captions-scroller" aria-live="polite">
                     {selectedDisplay.length ? (
-                      selectedDisplay.map((caption) => (
-                        <CaptionRow key={caption.id} caption={caption} />
-                      ))
+                      <TranscriptParagraphs captions={selectedDisplay} />
                     ) : (
                       <EmptyTranscript />
                     )}

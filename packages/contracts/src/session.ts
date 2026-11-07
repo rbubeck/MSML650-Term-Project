@@ -42,15 +42,24 @@ const utcTimestampSchema = z.iso.datetime();
  */
 export const createSessionRequestSchema = z.strictObject({
   title: sessionTitleSchema.optional(),
-  language: languageCodeSchema,
+  languageCode: languageCodeSchema,
 });
 export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
 
+/**
+ * PATCH /v1/sessions/{sessionId} body: rename an owned session. The response is
+ * the updated session. Idempotent: repeating the same title changes nothing.
+ */
+export const renameSessionRequestSchema = z.strictObject({
+  title: sessionTitleSchema,
+});
+export type RenameSessionRequest = z.infer<typeof renameSessionRequestSchema>;
+
 /** Session as returned to its owner. Owner identity and internal version are not exposed. */
 export const sessionSchema = z.strictObject({
-  id: sessionIdSchema,
+  sessionId: sessionIdSchema,
   title: sessionTitleSchema,
-  language: languageCodeSchema,
+  languageCode: languageCodeSchema,
   state: sessionStateSchema,
   /** Current provider stream epoch; increases monotonically on each reconnect. */
   streamEpoch: z.number().int().nonnegative(),

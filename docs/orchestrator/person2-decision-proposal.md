@@ -23,7 +23,13 @@ Already decided by ADR-011, so not reopened here: session states `CREATED`, `STR
 ## Open questions for the team
 - Is `us-east-1` acceptable for data residency and Transcribe availability?
 - Who owns the shared AWS account and approves spend?
-- Is rename in Phase 1? It is in the proposed routes but not in the ADR-011 journey.
+- Rename is in the Phase 1 route table of `API_CONTRACTS.md`, so a draft schema exists. Confirm it should stay, and in which states renaming is allowed.
+- What does "stale epoch" mean for uploads? Proposed: accept uploads for any epoch the API has issued (at or below the current one) while the session is open, so finals the browser received before a reconnect are not discarded; reject a higher epoch and uploads to completed or deleting sessions.
+- Which `Idempotency-Key` details do we adopt: header name, routes, retention window, and the response to a reused key with a different body?
+- Are the draft bounds acceptable (25 finals per batch, 2000 characters of text, 128-character IDs, page size 20 up to 50) and are `EPOCH_NOT_ISSUED` and `IDENTITY_CONFLICT` the right rejection reasons?
+- `API_CONTRACTS.md` says a conflicting reuse of a segment identity returns `STATE_CONFLICT` for the whole request. The draft schema returns a per-item `IDENTITY_CONFLICT` so a browser can see which final of a batch conflicted. Which do we adopt? If the per-item result is chosen, `API_CONTRACTS.md` needs a small amendment.
+- Should issuing a stream URL move a session from `CREATED` to `STREAMING` (as the draft handler does), or should that happen on the first accepted segment? And is it acceptable that epoch numbers can be skipped when signing fails after allocation? See "Deviations and assumptions" in [backend/api/README.md](../../backend/api/README.md).
+- Full list of placeholder values and handler duties: see "Open items to revisit" in [packages/contracts/README.md](../../packages/contracts/README.md).
 
 ## What Person 2 will do next
 Write a non-secret Cognito config note (Region, flows, token lifetimes, observed claims), draft the schemas for blocker 4, and scaffold the handler interfaces with fakes and owner-isolation, duplicate-upload and stale-epoch tests. Shared AWS resources will not be created until blocker 1 is agreed.

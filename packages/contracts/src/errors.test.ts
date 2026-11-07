@@ -7,6 +7,14 @@ import {
 } from './errors.js';
 
 describe('errorEnvelopeSchema', () => {
+  it('has exactly the eight Phase 1 codes and no deferred-export code', () => {
+    expect(ERROR_CODES).toHaveLength(8);
+    const result = errorEnvelopeSchema.safeParse({
+      error: { code: 'EXPORT_NOT_READY', message: 'x' },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('accepts every documented error code', () => {
     for (const code of ERROR_CODES) {
       const result = errorEnvelopeSchema.safeParse({ error: { code, message: 'safe message' } });

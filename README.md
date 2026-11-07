@@ -1,6 +1,6 @@
 # Live Speech-to-Text Platform — Option A
 
-Status: Phase 1 architecture and team structure. The repository contains a fake-tested browser Transcribe protocol/transport package and a local microphone-to-stream-client frontend path, but no AWS-integrated live journey, control API, persistence adapter, or application AWS deployment.
+Status: the narrow Option A live-caption path is implemented, locally tested, and smoke-verified against a manually configured development stack in `us-east-2`. Cognito sign-up/sign-in, API Gateway JWT authorization, Lambda URL signing, direct browser-to-Transcribe PCM streaming, and live partial/final captions worked together on 2026-11-07. Persistence and the rest of the Phase 1 application remain incomplete.
 
 The active MVP is an authenticated **live transcription** application. The browser streams microphone PCM directly to Amazon Transcribe over its presigned WebSocket/EventStream protocol. API Gateway and Lambda form a separate HTTPS control plane for sessions, URL signing, acknowledged final uploads, history, and deletion. DynamoDB stores owned sessions and acknowledged final segments.
 
@@ -24,6 +24,24 @@ sign in
 - Python word-error-rate scripts have been migrated to `evaluation/scripts/`; reference metadata and existing evaluation artifacts remain in place. See `evaluation/README.md` for evaluation details.
 - A historical local server-side Transcribe experiment succeeded in `us-east-1` on 2026-11-02. It is **not** evidence of Option A browser streaming, signing, persistence, or deployment. The Option B code has been removed; its history remains in Git.
 - A paid development account and $20 monthly AWS Budget alert were reported for that experiment. Reverify account, Region, budget, quotas, and permissions before any new AWS work. A budget alert is not a hard cost cap.
+
+## Verified development smoke checkpoint — 2026-11-07
+
+A controlled single-user test in `us-east-2` verified this real path:
+
+```text
+local Vite browser
+→ Cognito sign-up, confirmation and access-token sign-in
+→ API Gateway HTTP API with JWT authorizer and local-origin CORS
+→ guarded Lambda single-session repository and runtime-role signer
+→ short-lived Transcribe WebSocket capability
+→ direct browser PCM/EventStream connection to Amazon Transcribe
+→ real partial and final-observed captions in the UI
+```
+
+The browser reported 48 kHz microphone input resampled to the contracted 16 kHz mono PCM output. This is smoke evidence for the narrow live-caption slice, not MVP acceptance: the test did not prove durable segment saving, history, DynamoDB ownership, automatic reconnect, two-user isolation, the one-hour target, or production readiness. The temporary repository can reset its epoch across Lambda environments and must not become the MVP repository.
+
+Resource identifiers and user identity values are intentionally absent from tracked files. Local `frontend/.env`, generated `dist/` content, the Lambda ZIP, JWTs, presigned URLs, and transcripts must remain untracked and unshared.
 
 ## Phase 1 owners
 
@@ -49,4 +67,4 @@ sign in
 4. Run `npm run check` before TypeScript handoff. Normal tests must not call AWS.
 5. Do not create shared AWS resources or run the real one-hour test without explicit approval and a bounded plan.
 
-Documentation, mocks, and historical smoke tests are not evidence of an integrated product.
+Documentation and mocks are not runtime evidence. The dated checkpoint above is evidence only for the explicitly listed development smoke path.

@@ -64,16 +64,20 @@ export class DirectStreamAdapter implements StreamUIAdapter {
     const transport = this.createTransport({
       onPartial: (result) =>
         handlers.onCaption({
+          streamEpoch: result.streamEpoch,
           resultId: result.resultId,
           text: result.text,
-          relativeStartMs: result.startMs,
+          startMs: result.startMs,
+          endMs: result.endMs,
           phase: 'partial',
         }),
       onFinal: (result) =>
         handlers.onCaption({
+          streamEpoch: result.streamEpoch,
           resultId: result.resultId,
           text: result.text,
-          relativeStartMs: result.startMs,
+          startMs: result.startMs,
+          endMs: result.endMs,
           phase: 'final-observed',
         }),
       onError: (error) => {

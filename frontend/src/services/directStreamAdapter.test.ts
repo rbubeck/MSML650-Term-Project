@@ -120,15 +120,19 @@ describe('DirectStreamAdapter', () => {
     expect(statuses[0]?.sampleRate).toBe(48_000);
     expect(captions).toEqual([
       {
+        streamEpoch: 3,
         resultId: 'result-1',
         text: 'hello wor',
-        relativeStartMs: 120,
+        startMs: 120,
+        endMs: 900,
         phase: 'partial',
       },
       {
+        streamEpoch: 3,
         resultId: 'result-1',
         text: 'hello world',
-        relativeStartMs: 120,
+        startMs: 120,
+        endMs: 900,
         phase: 'final-observed',
       },
     ]);

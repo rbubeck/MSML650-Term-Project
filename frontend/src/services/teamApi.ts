@@ -1,6 +1,7 @@
-/** Proposed Option A control-plane routes from API_CONTRACTS.md.
- * Structured response shapes remain TBD until @live-transcription/contracts publishes Zod schemas.
- * No code here talks to Transcribe or signs URLs.
+import { streamUrlResponseSchema, type StreamUrlResponse } from '@live-transcription/contracts';
+
+/** Option A control-plane routes from API_CONTRACTS.md. No code here talks to
+ * Transcribe or signs URLs.
  */
 export class TeamApi {
   constructor(
@@ -65,12 +66,17 @@ export class TeamApi {
   deleteSession(sessionId: string): Promise<unknown> {
     return this.request('DELETE', `/v1/sessions/${encodeURIComponent(sessionId)}`);
   }
-  /** Intentionally service-private in architecture: stream client adapter consumes this. */
-  requestStreamCapability(sessionId: string, unapprovedRequestShape: unknown): Promise<unknown> {
-    return this.request(
+  /** Intentionally service-private: the stream adapter consumes the sensitive URL. */
+  async requestStreamCapability(sessionId: string): Promise<StreamUrlResponse> {
+    const response = await this.request(
       'POST',
       `/v1/sessions/${encodeURIComponent(sessionId)}/stream-url`,
-      unapprovedRequestShape,
     );
+    const parsed = streamUrlResponseSchema.safeParse(response);
+    if (!parsed.success || parsed.data.sessionId !== sessionId) {
+      // Do not expose validation details: they could contain the signed URL.
+      throw new Error('The stream authorization response was invalid.');
+    }
+    return parsed.data;
   }
 }

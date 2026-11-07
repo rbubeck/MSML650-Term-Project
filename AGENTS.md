@@ -8,6 +8,10 @@ Build only the integrated authenticated live-transcription MVP defined by ADR-01
 
 Do not add recorded-file upload, batch transcription, S3 exports, summarization, other derived features, shared rooms, raw-audio storage, or production-scale infrastructure in Phase 1.
 
+## Current checkpoint
+
+On 2026-11-07, a manually configured `us-east-2` development stack verified Cognito sign-in, API Gateway access-token authorization, the guarded single-session Lambda signer, direct browser PCM/EventStream streaming to Amazon Transcribe, and real partial/final-observed captions. This is narrow smoke evidence only. Durable session creation, segment acknowledgment, DynamoDB ownership, completion/history/deletion, reconnect evidence, two-user isolation, and the one-hour run remain required. Never commit the local AWS configuration, identity values, JWTs, presigned URLs, generated Lambda bundle/ZIP, or transcripts.
+
 ## Ownership
 
 | Owner | Phase 1 paths and deliverable |

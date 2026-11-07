@@ -6,12 +6,15 @@ export const config = {
   cognitoUserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID ?? '',
   cognitoClientId: import.meta.env.VITE_COGNITO_CLIENT_ID ?? '',
   cognitoRegion: import.meta.env.VITE_COGNITO_REGION ?? '',
+  /** Temporary integration input until the create-session UI is connected. */
+  liveSessionId: import.meta.env.VITE_LIVE_SESSION_ID ?? '',
 } satisfies {
   mode: AppMode;
   apiBaseUrl: string;
   cognitoUserPoolId: string;
   cognitoClientId: string;
   cognitoRegion: string;
+  liveSessionId: string;
 };
 
 export const hasCloudConfig = Boolean(

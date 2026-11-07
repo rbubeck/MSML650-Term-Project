@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { MAX_OWNER_ID_LENGTH, identityFromClaims, identityFromEvent } from './identity.js';
 
 describe('identityFromClaims', () => {
-  it('uses the sub claim as the owner', () => {
-    expect(identityFromClaims({ sub: 'user-123' })).toEqual({ ownerId: 'user-123' });
+  it('requires an access token and uses its sub claim as the owner', () => {
+    expect(identityFromClaims({ sub: 'user-123', token_use: 'access' })).toEqual({
+      ownerId: 'user-123',
+    });
+    expect(identityFromClaims({ sub: 'user-123' })).toBeNull();
   });
 
   it('accepts an access token and ignores unrelated claims such as a client-style userId', () => {
@@ -37,7 +40,9 @@ describe('identityFromClaims', () => {
 
 describe('identityFromEvent', () => {
   it('reads the claims API Gateway attached to the event', () => {
-    const event = { requestContext: { authorizer: { jwt: { claims: { sub: 'user-9' } } } } };
+    const event = {
+      requestContext: { authorizer: { jwt: { claims: { sub: 'user-9', token_use: 'access' } } } },
+    };
     expect(identityFromEvent(event)).toEqual({ ownerId: 'user-9' });
   });
 

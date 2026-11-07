@@ -1,6 +1,6 @@
 # Architecture: Option A Phase 1 Live MVP
 
-Status: target architecture; no Phase 1 application or deployment exists. Last reviewed: 2026-11-06.
+Status: active target architecture. A manually configured `us-east-2` development stack verified the narrow authenticated direct-browser live-caption path on 2026-11-07; the durable Phase 1 application is not complete. Last reviewed: 2026-11-07.
 
 ## Integrated system
 
@@ -17,6 +17,8 @@ flowchart LR
 ```
 
 The live audio data plane is browser-to-Transcribe. The application control plane is browser-to-API Gateway/Lambda. No application backend proxies continuous audio.
+
+The development smoke stack currently implements only Cognito identity and `POST /v1/sessions/{sessionId}/stream-url`, backed by a guarded, non-durable single-session Lambda repository. It verified the diagram through live captions but does not implement the DynamoDB, final-save, completion, history, deletion, reconnect, or one-hour portions of this architecture.
 
 ## Phase 1 flow
 

@@ -1,6 +1,6 @@
 # Phase 1 Direct Transcribe Streaming Protocol
 
-Status: browser-client implementation guide. EventStream framing, fake-backed WebSocket lifecycle behavior, and a browser-local microphone integration path are implemented; control-API integration and a live AWS browser test do not yet exist.
+Status: browser-client implementation guide. EventStream framing, fake-backed WebSocket lifecycle behavior, and the control-API/browser microphone integration are implemented. A direct AWS browser stream produced real captions in `us-east-2` on 2026-11-07; reconnect and one-hour evidence do not yet exist.
 
 The application defines no custom audio WebSocket or audio header. The browser opens the short-lived `wss://transcribestreaming.<region>.amazonaws.com:8443/stream-transcription-websocket` URL returned by the API and follows Amazon's WebSocket/EventStream protocol. Do not copy the separate HTTP/2 per-frame signing procedure.
 
@@ -31,6 +31,8 @@ The current defaults bound both browser `WebSocket.bufferedAmount` and the packa
 - Never reuse a URL intentionally or infer active-stream duration from URL expiry.
 
 ## One-hour target
+
+The first short development smoke verified 48 kHz browser input resampling to 16 kHz mono PCM, successful EventStream audio delivery, and partial/final-observed result decoding. It did not verify the one-hour target, reconnect, tab suspension, device changes, long-run queue behavior, or durable final acknowledgment.
 
 Use deterministic accelerated/soak tests locally for queue and cleanup behavior. The approved one-hour browser run verifies pacing, memory, save acknowledgments, visibility/network interruption behavior, and stop. One run is MVP evidence, not a production SLO.
 

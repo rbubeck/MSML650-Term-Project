@@ -1,6 +1,12 @@
 # Phase 1 AWS Console Setup and Handoff
 
-Status: `PROPOSED` checklist. Do not create or change resources until the named account, Region, deployer, cost bound, and cleanup owner are approved.
+Status: development checklist. A bounded single-user subset was executed manually in an approved `us-east-2` account on 2026-11-07; the full persistence/MVP checklist remains proposed. Do not repeat, expand, or productionize resources without named account, Region, deployer, cost bound, and cleanup owner approval.
+
+## Executed smoke subset — 2026-11-07
+
+The team manually configured a Cognito User Pool/public SPA client, an API Gateway HTTP API route with JWT authorization and local-origin CORS, a Node.js 24 Lambda signer using runtime-role credentials, and the Transcribe WebSocket IAM action. A local Vite browser authenticated, obtained a capability, streamed resampled mono PCM directly to Transcribe, and displayed real captions.
+
+This record intentionally omits all resource IDs, account/user identifiers, tokens, URLs and transcript content. DynamoDB, final-save/history APIs, multi-user isolation, reconnect and the one-hour run were not part of the smoke. Generated deployment artifacts and local environment values remain outside Git.
 
 ## 1. Preflight
 

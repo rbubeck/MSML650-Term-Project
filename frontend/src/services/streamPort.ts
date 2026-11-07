@@ -1,12 +1,14 @@
 import type { CaptionPhase } from '../lib/viewModels';
 
-/** UI-facing adapter contract only; NOT a socket protocol or approved network schema.
- * Person 3 owns @live-transcription/stream-client. Connect it here after interface review.
+/** UI-facing adapter contract only; NOT a socket protocol or application network schema.
+ * Person 3 owns the provider transport behind this boundary.
  */
 export interface LiveCaptionEvent {
+  streamEpoch: number;
   resultId: string;
   text: string;
-  relativeStartMs: number;
+  startMs: number;
+  endMs: number;
   phase: Extract<CaptionPhase, 'partial' | 'final-observed'>;
 }
 
@@ -21,12 +23,10 @@ export interface StreamUIAdapter {
   stop(): Promise<void>;
 }
 
-/** Fails closed until Person 3's reviewed package API and Zod contracts exist. */
+/** Optional fail-closed fallback when no real or local adapter is configured. */
 export class PendingStreamAdapter implements StreamUIAdapter {
   async start(): Promise<void> {
-    throw new Error(
-      'Live AWS streaming is not connected. Awaiting the team-reviewed stream-client API.',
-    );
+    throw new Error('Live streaming is not configured.');
   }
   async stop(): Promise<void> {
     return;

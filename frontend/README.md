@@ -1,6 +1,6 @@
 # Frontend — Person 1 Phase 1
 
-Status: React UI, AudioWorklet capture, direct-stream adapter, and a clearly labeled local provider simulation exist. AWS signing, final uploads, persistence, and deployed integration remain pending.
+Status: React UI, Cognito email/password flows, AudioWorklet capture, direct-stream adapter, typed stream-capability parsing, AWS-mode live-stream wiring, and a clearly labeled local provider simulation exist. A real single-user AWS browser stream produced live captions in `us-east-2` on 2026-11-07. Final uploads, persistence, history, reconnect evidence, and the full Phase 1 journey remain pending.
 
 ## Initial deliverable
 
@@ -49,15 +49,17 @@ The active design in the repository is **Option A (ADR-010)**:
 | Area | Frontend starting point | Still required for live AWS |
 |---|---|---|
 | Application | React/TypeScript/Vite dashboard, login screens, captions, mock history | Connect live data and verify accessible browser behavior |
-| Authentication | `src/auth/cognito.ts`: AWS Amplify sign-up, confirmation, sign-in, sign-out, access-token retrieval | Cognito configuration; team-approved auth flow and API JWT authorizer |
-| HTTP API | `src/services/teamApi.ts`: proposed `/v1` routes, bearer auth, HTTPS enforcement | Approved Zod schemas; deployed Lambda handlers; response parsing and UI wiring |
+| Authentication | `src/auth/cognito.ts`: AWS Amplify sign-up, confirmation, sign-in, sign-out, access-token retrieval | Development-smoke-verified with Cognito; challenge/MFA and broader auth behavior still need review |
+| HTTP API | `src/services/teamApi.ts`: bearer auth, HTTPS enforcement, and validated stream-URL response | Stream-URL route smoke-verified; typed/deployed implementations for the remaining routes |
 | Recording | `src/audio/microphone.ts` + `public/worklets/pcm-processor.js` | Approved-browser testing and consent review |
-| Streaming | `DirectStreamAdapter` routes microphone PCM through Person 3's real client; mock mode uses a clearly labeled local fake provider | Accepted Zod stream-capability parser and real signed-URL browser test |
+| Streaming | `DirectStreamAdapter` routes microphone PCM through Person 3's real client; AWS mode consumes the validated signed URL and mock mode uses a clearly labeled local fake | Narrow real signed-URL browser test passed; reconnect, long-run and browser-matrix evidence remain |
 | Captions | `src/lib/viewModels.ts`: `partial`, `final-observed`, `saving`, `save-acknowledged`, `save-failed` | Map shared contract results into display states; real save acknowledgments |
 | History/export | Mock-only UI and TXT sample download | Backend list/detail/rename/delete and authorized S3 export downloads |
 | Uploaded audio files | Planned/disabled UI feature | Separate team-approved batch-upload architecture and endpoints |
 
-**Important reality check:** Setting `VITE_APP_MODE=aws` **does not** turn all buttons into live AWS functions. At present it activates the Cognito path and a `GET /v1/sessions` connectivity check; real session, streaming, history and export handlers still need to be connected after the shared contracts are agreed. The API client deliberately uses `unknown` rather than inventing request/response schemas.
+**Important reality check:** Setting `VITE_APP_MODE=aws` enables Cognito, the control API and the live stream adapter; it does not deploy AWS or implement session creation, final saving, history, completion, or deletion. The dated smoke used one explicitly configured owner/session and a temporary signer deployment.
+
+For the first integration smoke test only, `VITE_LIVE_SESSION_ID` can identify a session deliberately seeded for the signed-in user. Remove that temporary dependency when create-session is connected.
 
 ## 3. Prepare the repository and run the frontend
 
@@ -120,6 +122,7 @@ On a clean clone, run the contracts package build **before** `npm test` until th
    VITE_COGNITO_USER_POOL_ID=REGION_POOL_ID_FROM_PERSON_2
    VITE_COGNITO_CLIENT_ID=PUBLIC_APP_CLIENT_ID_FROM_PERSON_2
    VITE_API_BASE_URL=https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com
+   VITE_LIVE_SESSION_ID=OPAQUE_OWNED_TEST_SESSION_ID
    ```
 
    The URL is the **API root without `/v1`**; `TeamApi` adds `/v1` itself. The Region above is an **example**, not a team decision. If API Gateway uses a stage in the base URL, retain it, but do not append `/v1` twice. Restart Vite after editing `.env`.
@@ -142,7 +145,7 @@ Current proposed routes (check `API_CONTRACTS.md` before implementing):
 | List owned sessions | `GET /v1/sessions` | `listSessions()` |
 | Read one owned session | `GET /v1/sessions/{id}` | `getSession(id)` |
 | Rename a session | `PATCH /v1/sessions/{id}` | `renameSession(id, ...)` |
-| Ask backend for a stream capability | `POST /v1/sessions/{id}/stream-url` | `requestStreamCapability(id, ...)` — **service layer only** |
+| Ask backend for a stream capability | `POST /v1/sessions/{id}/stream-url` | `requestStreamCapability(id)` — validated, service layer only |
 | Upload final text | `POST /v1/sessions/{id}/segments` | `uploadFinalSegments(id, ...)` |
 | Finish session/export | `POST /v1/sessions/{id}/complete` | `completeSession(id, ...)` |
 | Download TXT/JSON export | `GET /v1/sessions/{id}/download?format=txt\|json` | **Not implemented yet** — add after contract approval |
@@ -166,7 +169,7 @@ The exact payload schemas, idempotency placement and download response type are 
    ```
 
    The AudioWorklet resamples native 44.1/48 kHz input to **16 kHz mono**, and its chunks target **1,600 samples / 3,200 PCM bytes per 100 ms**. Test silence, clipping, fractional-rate boundaries, and final zero-padding in the agreed browsers.
-3. Person 3 defines and publishes the accepted `@live-transcription/stream-client` API. Implement an adapter in `src/services/streamPort.ts` satisfying the UI's `StreamUIAdapter` boundary. The current `PendingStreamAdapter` intentionally throws; **it is not a WebSocket client**.
+3. `DirectStreamAdapter` satisfies the UI's `StreamUIAdapter` boundary and is active in mock and AWS modes. `PendingStreamAdapter` remains only as a fail-closed fallback and is not the active AWS path.
 4. The service layer requests the session-scoped short-lived WSS URL from Person 2's authenticated API and passes it **directly to the shared stream client**, not to a React component, analytics, logs, local storage or browser navigation. Lambda signs using its execution role; React **must not** calculate SigV4 signatures or possess permanent AWS credentials.
 5. Stream client handles Amazon EventStream frames, audio backpressure, provider decoding, safe cancellation, interruptions and reviewed reconnection behavior. Do not write provider protocol code in `App.tsx` or send the obsolete custom 16-byte header.
 6. Map stream events to `src/lib/viewModels.ts`: **partial** replaces the transient caption; **final-observed** is displayed, then queued for API saving; **save-acknowledged** appears only on durable API acknowledgement; **save-failed** provides a retry path. Do not present a preview/demo result as a real cloud result.
@@ -192,6 +195,10 @@ The exact payload schemas, idempotency placement and download response type are 
 The original project proposal included uploading recordings, but the current Option A API does **not** define `POST upload`, presigned S3 upload, batch Transcribe jobs or job status routes. Keep the existing upload UI disabled or visibly labeled **Planned**. If the team approves this feature, write and review an additional API/schema/ADR first (file limits, ownership, S3 quarantine/retention, transcription-job lifecycle, costs and deletion) and then connect that interface. **Do not pretend upload is live** or make public S3 buckets to bypass the missing API.
 
 ## 6. First end-to-end AWS test (run only in the approved environment)
+
+### Current evidence
+
+The narrow live-caption subset succeeded on 2026-11-07 from a local `http://127.0.0.1:5173` browser against a manual `us-east-2` development stack. Sign-up, confirmation, sign-in, JWT-authorized stream-capability issuance, 48 kHz browser input resampling to 16 kHz mono PCM, direct Transcribe connection, and real final-observed captions were seen. No final was durably acknowledged, and no transcript/history claim follows from this test. No resource identifier, user `sub`, token, signed URL, or transcript belongs in this repository.
 
 The first real milestone is **one account, one live stream, one durably saved transcript**:
 
@@ -220,7 +227,7 @@ Record the **AWS Region, browser/version, time, test dataset provenance, observe
 | 404 / wrong API route | `VITE_API_BASE_URL` must be the root/stage URL; `TeamApi` already appends `/v1` |
 | Mic permission denied | HTTPS/loopback origin, OS privacy settings, browser permissions, user consent |
 | No local simulated captions | Allow microphone permission, remain in mock mode, and verify the AudioWorklet loaded from the loopback origin |
-| No real AWS captions | Person 2's accepted stream-capability schema and signer response are not integrated yet |
+| Real AWS stream fails before captions | HTTPS API base URL, CORS origin/headers, JWT issuer/audience, access-token `token_use`, configured owner/session, Lambda environment, signer IAM, and Transcribe WebSocket errors |
 | Captions appear but history is empty | Browser-only finals are not durable; inspect `/segments` response and DynamoDB acknowledgment |
 | Transcript download unavailable | Check completion status and private S3 export readiness; do not assume final segment save equals export ready |
 | Tests cannot import `@live-transcription/contracts` | `npm run build --workspace @live-transcription/contracts` before `npm test` on a clean clone |

@@ -1,6 +1,6 @@
 # Authenticated Control API — Person 2 Phase 1
 
-Status: one route, `POST /v1/sessions/{sessionId}/stream-url`, is implemented and tested against fakes. No other handler exists, and nothing is deployed. See [Implementation status](#implementation-status).
+Status: `POST /v1/sessions/{sessionId}/stream-url`, the Transcribe signer, and an explicitly guarded single-session smoke-test Lambda entry point are implemented and fake-tested. A manual `us-east-2` development deployment issued a capability that Amazon Transcribe accepted during a real browser stream on 2026-11-07. No other application route exists. See [Implementation status](#implementation-status).
 
 ## Initial deliverable
 
@@ -32,15 +32,16 @@ Recorded-file/batch endpoints, export/download jobs, summaries, arbitrary profil
 
 | Deliverable | State |
 |---|---|
-| Owner/state-checked Transcribe URL issuance | **Implemented, fake-tested.** Not deployed, not verified against AWS. |
+| Owner/state-checked Transcribe URL issuance | **Implemented, fake-tested, development-smoke-verified.** Real Cognito access-token claims reached Lambda through API Gateway and the returned URL opened Transcribe. |
+| Guarded first-stream Lambda entry point | **Implemented, fake-tested, manually deployed for development smoke.** Uses non-durable single-session state and is not an MVP repository. |
 | Create, list, read, rename sessions | Not started. |
 | Final-segment saves and acknowledgments | Not started. |
 | Session completion | Not started. |
 | Deletion | Not started. |
 | DynamoDB repository adapter | Not started (Person 4). |
-| Real rate limiter, production logger, Lambda entry point | Not started. |
+| Production Lambda entry point, rate limiter and logger | Not started. The smoke-test entry point is intentionally temporary. |
 
-"Fake-tested" means the tests use fake identity, repository, clock, signer, limiter and logger, plus the real signer with synthetic credentials. They make no AWS or network calls. Passing them shows the code behaves as designed and follows the documented signing algorithm. It does not show that AWS accepts the URL; see [Not verified against AWS](#not-verified-against-aws). Nothing here creates or changes an AWS resource.
+"Fake-tested" means the normal automated tests use fake identity, repository, clock, signer, limiter and logger, plus the real signer with synthetic credentials; they make no AWS or network calls. Separately, the dated manual smoke established runtime compatibility for one development configuration. Repository commands still do not create or modify AWS resources.
 
 ## How the stream-URL handler works
 
@@ -74,6 +75,9 @@ src/
 │   └── stream-url.ts createStreamUrlHandler(deps): POST /v1/sessions/{sessionId}/stream-url
 ├── aws/              code that talks to AWS (focus of real-AWS verification and IAM review)
 │   └── transcribe-signer.ts  createTranscribeUrlSigner(credentials), lambdaRuntimeCredentials()
+├── integration/
+│   └── single-session-repository.ts  guarded, non-durable first-stream test adapter
+├── smoke-test-lambda.ts  API Gateway entry point for the first real stream test only
 └── testing/          test fakes; excluded from the build, never import from production code
     └── fakes.ts
 ```
@@ -108,6 +112,44 @@ The deliverable above also lists ID generation. The stream-URL route creates no 
 
 `FakeSessionRepository` in `src/testing/fakes.ts` implements this behavior and can serve as the shared deterministic fake.
 
+## First live-stream smoke-test runtime
+
+`src/smoke-test-lambda.ts` composes the existing handler and real signer with one configured, in-memory session. Build its self-contained Lambda file with:
+
+```bash
+npm run bundle:smoke --workspace @live-transcription/api
+```
+
+The generated file is `backend/api/dist/smoke/index.mjs`. Put that file at the root of the Lambda upload ZIP and configure the Lambda handler as:
+
+```text
+index.handler
+```
+
+The bundle contains the runtime dependencies but no credentials or environment values. ZIP creation and AWS deployment remain explicit, approval-gated operations; generated `dist/` and `*.zip` files are ignored by Git.
+
+Required Lambda environment:
+
+```dotenv
+ENABLE_SMOKE_TEST_SESSION_REPOSITORY=true
+SMOKE_TEST_SESSION_ID=an-opaque-test-session-id
+SMOKE_TEST_OWNER_ID=the-cognito-access-token-sub
+SMOKE_TEST_LANGUAGE_CODE=en-US
+STREAM_URL_EXPIRY_SECONDS=60
+```
+
+Lambda supplies `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` from the execution role. Do not define, copy, or expose those values yourself. The role needs `transcribe:StartStreamTranscriptionWebSocket`; API Gateway must attach validated Cognito access-token claims.
+
+This runtime is deliberately narrow:
+
+- it accepts exactly one session and owner;
+- it implements only the stream-URL route;
+- its epoch counter exists only inside one warm Lambda process;
+- cold starts or parallel Lambda environments can reset or duplicate epochs; and
+- it must be replaced by Person 4's authoritative repository before durable MVP or reconnect claims.
+
+The explicit feature flag prevents accidental startup without acknowledging those limitations. It is sufficient only for a controlled, single-user, short live-caption test.
+
 ## What Person 3 can consume
 
 The response shape is `streamUrlResponseSchema` in `@live-transcription/contracts`: `sessionId`, `streamEpoch`, `url`, `expiresAt`, `languageCode`, `mediaEncoding` (`pcm`), `sampleRateHz` (16000), `channels` (1). Expected behavior:
@@ -115,7 +157,7 @@ The response shape is `streamUrlResponseSchema` in `@live-transcription/contract
 - A new epoch and a freshly signed URL on every request, including reconnects. Epochs only increase, and they may skip numbers (deviation 3).
 - `expiresAt` is a connection-start expiry (60 seconds by default), not a stream-duration limit. Request a fresh URL on every reconnect.
 - Errors use `{ error: { code, message } }`. The HTTP statuses are placeholders (deviation 5), so branch on `code`, not on the status.
-- Nothing is deployed, so there is no base URL yet. Build against the schema and a fake.
+- A development smoke endpoint exists outside the repository. Its base URL and resource identifiers are environment-specific and must not be committed; consumers build against the schema and configure the URL locally.
 
 ## Commands
 
@@ -131,17 +173,11 @@ npm run build --workspace @live-transcription/api         # also rebuilds contra
 
 Root `npm run check` stops at `format:check` in a Windows checkout with CRLF line endings; see deviation 18.
 
-## Not verified against AWS
+## AWS smoke evidence and remaining gaps
 
-Each item needs a real, approved AWS environment. None is proven by the tests.
+The 2026-11-07 `us-east-2` development smoke verified, for one invocation and browser stream, that API Gateway passed real Cognito access-token claims (including `token_use`), Lambda runtime-role credentials produced a usable URL, the host-only signed-header choice and observed session-token encoding were accepted, the IAM action authorized connection, and Transcribe accepted `media-encoding=pcm` at 16 kHz mono. No URL, token, owner ID, account ID, API ID, or transcript is recorded here.
 
-- **That Transcribe accepts our signed URL.** `src/aws/transcribe-signer.test.ts` checks the signature against an independent implementation of the AWS pseudocode, which shows we follow the documented algorithm, not that the service agrees.
-- **Encoding of `=` in query values.** The AWS guide says "Double-encode any equals (=) characters in parameter values", but standard SigV4 and the signing library encode once. A session token can contain `=`. If AWS really requires double-encoding, URLs built with such a token will be rejected. Verify with a real credential.
-- **The signed header list.** The guide's pseudocode signs only `host`; its sample URL shows `content-type;host;x-amz-date`. We sign `host` only.
-- **`media-encoding=pcm`.** The guide's sample uses `flac`; PCM comes from this repository's own docs.
-- **Lambda credentials.** That `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` hold usable execution-role credentials for the whole life of a warm container.
-- **Real Cognito access-token claims** through the API Gateway JWT authorizer, including `token_use`.
-- **The 60-second expiry** under real network conditions, and the IAM policy (`transcribe:StartStreamTranscriptionWebSocket`; the AWS example uses `Resource: "*"`).
+Still unverified: URL connection attempts near/after the 60-second expiry; URL construction across a wider sample of temporary session-token characters; cold starts and parallel Lambda environments; deliberate reconnect/fresh-epoch behavior; rate/capacity enforcement; multi-user isolation; the one-hour run; and production monitoring/cleanup. The automated tests remain fake-backed and cannot replace those checks.
 
 ## Deviations and assumptions
 
@@ -150,7 +186,7 @@ Each item departs from, or fills a gap in, an existing rule or document. The rea
 1. **Epoch allocation lives inside `SessionRepository`, not in a separate interface.** The task description listed "stream-epoch allocation" as its own interface. As two calls, "check the state" and "allocate the epoch" can race, letting two requests both pass the check. One atomic call avoids that. A separate allocator would still have to run in the same transaction.
 2. **Issuing a URL moves `CREATED` to `STREAMING`.** `API_CONTRACTS.md` only says "authorize a new stream epoch". The move happens in the same atomic step as the allocation, so a session shows `STREAMING` after its first URL even if the browser never connects. An alternative is to move on the first accepted segment upload. Undecided.
 3. **Epochs can be skipped.** The epoch is allocated before the language check and before signing, because the session language is only known after the repository call. A signer failure or unsupported language therefore consumes an epoch. Epochs are monotonic, not contiguous; consumers (stale-epoch rules, UI) must not assume no gaps.
-4. **`token_use` must be `access` when present.** The spec requires the access token, and rejecting a token that declares itself an ID token catches a misconfigured client. A claims set without `token_use` is still accepted. Check against real tokens.
+4. **`token_use` must be exactly `access`.** Missing values and ID tokens are rejected. The development smoke observed the expected real Cognito/API Gateway access-token claim shape; keep the backend check.
 5. **HTTP status mapping is a placeholder** in `src/http/responses.ts`: 401, 404, 400, 409, 429, 503 for `CAPACITY_LIMIT`, 502 for `SIGNING_FAILED`, 500. The contract leaves the mapping undecided. It is a single table.
 6. **An unsupported session language returns `INVALID_INPUT` (400).** It is arguably a server configuration problem rather than a client one; alternatives are `STATE_CONFLICT` or `INTERNAL_ERROR`. The approved language list is undecided (`allowedLanguageCodes` is configuration).
 7. **The rate limiter and logger have silent defaults.** The default limiter allows everything and the default logger records nothing. `RATE_LIMITED` and `CAPACITY_LIMIT` come only from an injected limiter, and no real limiter exists because the limits are undecided (decision queue blocker 3). A production logger still has to be written and must accept only allow-listed event names and error codes, as `Logger` enforces.
@@ -159,8 +195,8 @@ Each item departs from, or fills a gap in, an existing rule or document. The rea
 10. **Hand-written API Gateway event types** instead of `@types/aws-lambda`, to avoid another dependency. They cover only the fields the handler reads.
 11. **Contracts resolve differently in typecheck and tests.** Typecheck maps `@live-transcription/contracts` to its source with `paths`, as the frontend does. Vitest resolves it through `node_modules` to the built `dist/`, so contracts must be built before testing (as the frontend's `pcm-worklet` test already requires). A stale `dist/` can make the two disagree. The `build` script rebuilds contracts first because the root workspace order builds `backend/api` before `packages/contracts`. Two cleaner fixes would edit shared files and were not made: a Vitest alias to the contracts source in the root config, or TypeScript project references.
 12. **Test fakes live in `src/testing/`.** They are not named `*.test.ts`, so `tsconfig.build.json` excludes the folder explicitly.
-13. **No deployable entry point.** The package exports `createStreamUrlHandler`. A Lambda entry point needs Person 4's adapter and decisions on Region, allowed languages and environment variable names.
-14. **Test Region and language are synthetic.** `us-east-1` and `en-US` are test values, not a team decision.
+13. **Only a smoke-test entry point exists.** `smoke-test-lambda.ts` is deployable for the first controlled stream but intentionally uses non-durable single-process state. The production entry point still needs Person 4's adapter and accepted Region/language configuration.
+14. **Automated-test Region and language are synthetic.** Unit tests use `us-east-1` and `en-US`; the manual development smoke used `us-east-2` and `en-US`. That does not establish the final Region/language policy.
 15. **IAM scope.** The AWS example grants `transcribe:StartStreamTranscriptionWebSocket` on `Resource: "*"`. Compensating controls are the owner check, short expiry, rate limits and monitoring; see `docs/security.md`.
 16. **The `test` script runs the root Vitest config** filtered to this workspace (`vitest run --root ../.. backend/api`), because Vitest is configured once at the root.
 17. **The signing time is read once per request** and also used for `expiresAt`, so the signature and the reported expiry agree.
@@ -168,4 +204,4 @@ Each item departs from, or fills a gap in, an existing rule or document. The rea
 
 ## Next tasks
 
-Agree the open contract items with Persons 1, 3 and 4 (see `packages/contracts/README.md`), then implement the remaining routes the same way, each with fake-backed owner-isolation and failure tests. Verify the signer against real AWS only after the account, Region and budget are approved.
+The first stream has succeeded. Next, preserve the smoke deployment only as a bounded development aid, replace the single-session repository with Person 4's authoritative adapter, and implement the remaining routes with fake-backed owner-isolation and failure tests before another AWS acceptance run.

@@ -1,6 +1,6 @@
 # Phase 1 Security and Privacy
 
-Status: required MVP controls; deployment and production policy remain pending.
+Status: required MVP controls. A development smoke verified the Cognito → JWT-authorized API Gateway → Lambda signer → direct Transcribe trust path for one configured user on 2026-11-07; persistence, adversarial checks and production policy remain pending.
 
 ## Trust boundaries
 
@@ -21,6 +21,8 @@ Status: required MVP controls; deployment and production policy remain pending.
 - Deletion immediately denies reads and removes Phase 1 records with safe retry behavior.
 
 ## Minimum verification
+
+Observed in the development smoke: a public Cognito client without a secret, access-token JWT authorization, Lambda runtime-role signing, a non-cacheable capability response, and direct browser-to-Transcribe audio. This did not verify foreign-owner denial, abuse resistance, expiry boundaries, log review, deletion, persistence isolation, or production monitoring.
 
 Test two-user isolation for create/list/read/rename/sign/save/complete/delete; expired/rejected signing; malformed/oversized input; duplicate/conflicting final identity; stale epoch; XSS-safe rendering; content-free logs; and denial after deletion.
 

@@ -1,6 +1,6 @@
 # Direct Amazon Transcribe Stream Client — Person 3 Phase 1
 
-Status: the browser EventStream protocol, bounded WebSocket lifecycle, and local frontend microphone integration are implemented and fake-tested. The control-API capability parser and first real AWS browser stream remain pending.
+Status: the browser EventStream protocol, bounded WebSocket lifecycle, typed control-API capability handoff, and frontend microphone integration are implemented and fake-tested. The first real AWS browser stream succeeded against a manual `us-east-2` development stack on 2026-11-07; reconnect, long-run and persistence evidence remain pending.
 
 ## Architecture boundary
 
@@ -56,7 +56,7 @@ These values are bounded integration defaults, not production-tuning evidence. T
 5. stops and flushes capture before sending the provider end frame; and
 6. cancels capture/transport after failures so the microphone does not continue without a stream.
 
-This intentionally does not define Person 2's HTTP response shape. The accepted Zod stream-capability schema must parse the future API response and map it into `StreamStartOptions`.
+`frontend/src/services/teamApi.ts` now validates Person 2's response with the shared `streamUrlResponseSchema`. AWS mode maps the sensitive response directly into `StreamStartOptions`; the URL is not placed in React state, logs, analytics, or storage. Caption handoff retains `streamEpoch`, `resultId`, `startMs`, `endMs`, and text so later persistence can use the shared final-segment identity.
 
 ## Local browser simulation
 
@@ -103,7 +103,7 @@ npx vitest run packages/stream-client
 npm run check
 ```
 
-At the current checkpoint, the focused package suite has 20 tests and the repository suite has 34 tests across 9 files. Normal tests use fake WebSockets and make no AWS or external network calls.
+At the current checkpoint, the repository suite passes 177 tests across 21 files. Normal tests use fake WebSockets and make no AWS or external network calls; the dated AWS smoke was a separate manual check.
 
 For the visible local test, start the frontend in mock mode:
 
@@ -113,13 +113,33 @@ npm run dev --workspace @live-transcription/frontend
 
 Open the live-transcription page, press **Test microphone**, grant permission, and confirm that the PCM count increases and clearly simulated partial/final captions appear. Stop the microphone after the check. Raw PCM is not persisted or sent over the network in this local path.
 
-## Remaining Phase 1 work
+## Current first-submission integration
 
-- accept Person 2's reviewed Zod stream-capability response and map it into `StreamStartOptions`;
-- replace the local fake capability/provider with the real authenticated signing endpoint and supplied WSS URL;
-- run a short approval-gated AWS browser smoke test;
-- verify expired/rejected signing, provider rejection, microphone denial, network interruption, and fresh-epoch reconnect in the integrated UI;
-- connect final results to the idempotent segment-upload API and show `Saved` only after acknowledgment; and
-- execute accelerated local soak/cleanup checks followed by the approved bounded one-hour browser run.
+AWS mode is wired for the narrow live-caption path:
+
+```text
+owned session ID
+  → authenticated stream-URL request
+  → shared Zod response validation
+  → direct Transcribe WebSocket
+  → microphone PCM AudioEvents
+  → partial/final captions in the UI
+  → graceful Stop
+```
+
+That narrow path succeeded on 2026-11-07 for one configured Cognito owner/session: 48 kHz browser input was resampled to 16 kHz mono PCM, Transcribe accepted EventStream audio, and real partial/final-observed captions reached the UI. Person 4's DynamoDB adapter was not involved, so no caption was durable. Until create-session is connected, `VITE_LIVE_SESSION_ID` may name the configured integration session in the untracked local environment only.
+
+## Later Person 3 work
+
+The following is deliberately not part of the current stitching pass:
+
+- automatic reconnect and retry policy; starting again already requests a fresh URL/epoch;
+- final-segment upload, save acknowledgment, completion, and history integration;
+- detailed expired-signature, interruption, and long-running recovery UX;
+- production tuning of queue, connection, drain, and stop timeouts;
+- accelerated soak/cleanup checks and the approved bounded one-hour browser run; and
+- expanded browser/audio compatibility and performance evidence.
+
+These remain Phase 1 follow-ups now that the basic live AWS caption path has succeeded. Person 3 must preserve epoch-aware final metadata for Person 1/2 even before persistence is connected.
 
 Recorded-file batch transcription, raw-audio storage, seamless audio replay, multi-provider support, summaries, and production tuning remain outside this Phase 1 package assignment.

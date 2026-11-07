@@ -9,8 +9,8 @@ export const MAX_OWNER_ID_LENGTH = 128;
  * the token signature, issuer, client and expiry; this only reads the result.
  *
  * - The owner is the `sub` claim. A client-supplied user ID is never consulted.
- * - `token_use`, when present, must be `access`. The contract requires the access
- *   token, and rejecting an ID token catches a misconfigured client or authorizer.
+ * - `token_use` must be `access`. The contract requires a Cognito access token;
+ *   accepting a missing value would weaken that boundary.
  *
  * Returns `null` when the claims cannot identify a caller.
  */
@@ -29,7 +29,7 @@ export function identityFromClaims(claims: unknown): Identity | null {
   }
 
   const tokenUse = record['token_use'];
-  if (tokenUse !== undefined && tokenUse !== 'access') return null;
+  if (tokenUse !== 'access') return null;
 
   return { ownerId: sub };
 }

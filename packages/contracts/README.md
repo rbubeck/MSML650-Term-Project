@@ -39,6 +39,27 @@ Update this section whenever a schema is added, changed, or accepted. Schemas ma
 - Open team decision: what "stale epoch" means for uploads. ADR-011 requires stale-epoch rejection but does not define it. Rejecting every upload below the current epoch would discard finals the browser already received and retried after a reconnect. Proposed: accept uploads for any epoch the API has issued (at or below the current one) while the session is open, deduplicated by identity; reject an epoch above the current one (`EPOCH_NOT_ISSUED`) and uploads to a completed or deleting session. This is handler logic, not enforced by the schema.
 - Segment results are per item so the browser knows exactly which finals to retry. `SAVED` and `DUPLICATE` both mean durably stored; the UI may show "saved" for either.
 
+### Open items to revisit
+
+Tick an item off, and note the decision here, once the team has settled it. Until then, every value below is a proposal.
+
+- [ ] **Idempotency-Key header** (`src/segments.ts`; also create-session): header name, which routes require it, retention window, and the conflict response (proposed: same key with a different body returns 409). Not described by the body schemas. Decision queue blocker 4.
+- [ ] **Stale-epoch rule** (handler logic, not schema): proposed to accept any issued epoch at or below the current one while the session is open, reject a higher one (`EPOCH_NOT_ISSUED`), and reject uploads to completed or deleting sessions. Needs team agreement and handler tests (Person 2).
+- [ ] **Segment bounds** (`src/segments.ts`): 25 finals per batch, 2000 characters of text, 128-character result ID, 24-hour cap on relative times.
+- [ ] **Segment rejection reasons** (`src/segments.ts`): only `EPOCH_NOT_ISSUED` and `IDENTITY_CONFLICT` exist; confirm the final set.
+- [ ] **Stream URL expiry** (`src/stream-url.ts`): 60 seconds is proposed and needs to be verified against real Transcribe behavior (clock skew, slow connections). AWS maximum is 300.
+- [ ] **Stream URL length cap** (`src/stream-url.ts`): 4096 characters is a guess; measure a real presigned URL that includes a session token.
+- [ ] **Stream URL host** (`src/stream-url.ts`): any AWS Region is accepted today; tighten to the approved Region once decided (decision queue blocker 1).
+- [ ] **`expiresAt` versus `expiresInSeconds`**: both are returned; decide whether to keep both.
+- [ ] **Session bounds** (`src/session.ts`): title 120 characters, ID 128, page size default 20 and max 50, cursor 512.
+- [ ] **Language list** (`src/session.ts`): validated by shape only; the approved languages are TBD and must be enforced in the handler.
+- [ ] **Session response details**: default title when none is given; `completedAt` omitted versus `null`; whether to expose a version counter (review with Person 4).
+- [ ] **Error message cap and HTTP statuses** (`src/errors.ts`): 200 characters is a placeholder; the code-to-status mapping is undecided.
+- [ ] **Strict schemas versus additive changes**: `z.strictObject` rejects unknown response fields, which conflicts with "additive changes stay in v1" in `API_CONTRACTS.md`.
+- [ ] **Rename in Phase 1**: not in the ADR-011 journey; add a schema only if it is in scope.
+- [ ] **Schemas still to write**: completion and deletion responses.
+- [ ] **Handler duties the schemas cannot enforce**: `Cache-Control: no-store` on the stream-URL response, ownership and state checks, epoch rules, parsing responses before returning them, and never logging URLs, tokens or transcript text.
+
 ### Change history
 
 | Date | Change |
@@ -47,3 +68,4 @@ Update this section whenever a schema is added, changed, or accepted. Schemas ma
 | 2026-11-06 | Added draft session, create-request, list-query and page schemas and tests. |
 | 2026-11-06 | Added draft stream-URL request and response schemas and tests. |
 | 2026-11-06 | Added draft final-segment upload request and per-item response schemas and tests. |
+| 2026-11-06 | Added the "Open items to revisit" checklist covering every placeholder and undecided value. |

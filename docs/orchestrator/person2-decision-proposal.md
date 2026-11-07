@@ -24,6 +24,10 @@ Already decided by ADR-011, so not reopened here: session states `CREATED`, `STR
 - Is `us-east-1` acceptable for data residency and Transcribe availability?
 - Who owns the shared AWS account and approves spend?
 - Is rename in Phase 1? It is in the proposed routes but not in the ADR-011 journey.
+- What does "stale epoch" mean for uploads? Proposed: accept uploads for any epoch the API has issued (at or below the current one) while the session is open, so finals the browser received before a reconnect are not discarded; reject a higher epoch and uploads to completed or deleting sessions.
+- Which `Idempotency-Key` details do we adopt: header name, routes, retention window, and the response to a reused key with a different body?
+- Are the draft bounds acceptable (25 finals per batch, 2000 characters of text, 128-character IDs, page size 20 up to 50) and are `EPOCH_NOT_ISSUED` and `IDENTITY_CONFLICT` the right rejection reasons?
+- Full list of placeholder values and handler duties: see "Open items to revisit" in [packages/contracts/README.md](../../packages/contracts/README.md).
 
 ## What Person 2 will do next
 Write a non-secret Cognito config note (Region, flows, token lifetimes, observed claims), draft the schemas for blocker 4, and scaffold the handler interfaces with fakes and owner-isolation, duplicate-upload and stale-epoch tests. Shared AWS resources will not be created until blocker 1 is agreed.

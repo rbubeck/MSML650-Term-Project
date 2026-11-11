@@ -1,8 +1,8 @@
 # Evaluation and Release Evidence — Person 5 Phase 1
 
-Status: Python evaluation scripts migrated into the shared project structure; reproducible Option A quality-gate work remains in progress.
+**Status:** Python evaluation scripts migrated into the shared project structure, with synthetic normalization and alignment edge-case coverage added. Reproducible Option A quality-gate work remains in progress.
 
-Owner: Person 5
+**Owner:** Person 5
 
 This directory contains the migrated Python evaluation tools and preserves the existing evaluation methodology. Original datasets and result artifacts remain under `Datasets/` and `Results/`. The migration does not delete source data or claim new benchmark results.
 
@@ -10,8 +10,11 @@ This directory contains the migrated Python evaluation tools and preserves the e
 
 - The six original Python scripts have been migrated from `Scripts/` into `evaluation/scripts/`.
 - Python dependencies are pinned separately in the repository-root `requirements-evaluation.txt`.
-- Python unit tests have been updated to use package imports and module execution.
-- Post-merge verification on the current shared-project checkout passed all 31 Python unit tests, and all six evaluation modules imported successfully. The full `npm run check` also passed: formatting, lint, root and workspace TypeScript typechecks, 177 Vitest tests, and frontend/API/contracts/stream-client builds.
+- Python unit tests use package imports and module execution.
+- The Python test suite now passes all **40 unit tests**, including additional synthetic tests for normalization, word alignment, repeated words, mixed edit types, and batch evaluation with an empty hypothesis.
+- Four small synthetic text fixtures are maintained under `tests/fixtures/transcripts/`. They cover normalization behavior and alignment edge cases without adding licensed transcripts or raw audio.
+- All six evaluation modules import successfully.
+- The full `npm run check` previously passed: formatting, lint, root and workspace TypeScript typechecks, 177 Vitest tests, and frontend/API/contracts/stream-client builds.
 - Existing `Datasets/` metadata and `Results/` artifacts are preserved; raw datasets and audio are not part of this migration.
 - The shared TypeScript suite does not yet invoke the Python WER tools.
 - One 4.016-second synthetic macOS voice file was manually streamed through Amazon Transcribe on 2026-11-02, proving SDK connectivity and partial/final delivery only. This is historical server-side connectivity evidence, not an Option A browser result.
@@ -43,10 +46,9 @@ Report dataset and version, browser, Region, provider settings, sample counts, e
 
 ## Remaining work
 
-1. Add small licensed or synthetic fixtures and tests for normalization and alignment edge cases.
-2. Document the WER methodology, dataset versions, exclusions, and limitations.
-3. Define browser capture, partial/final delivery, save acknowledgment, export, interruption, and cost measurement procedures.
-4. Coordinate privacy-safe telemetry and integration evidence with Persons 1–4.
-5. Keep release claims tied to the integrated authenticated browser-to-Transcribe demonstration, final upload/history/export/delete, two-user ownership isolation, privacy-safe logs, and tested failure behavior.
+1. Document the WER methodology, dataset versions, exclusions, and limitations.
+2. Define browser capture, partial/final delivery, save acknowledgment, export, interruption, and cost measurement procedures.
+3. Coordinate privacy-safe telemetry and integration evidence with Persons 1–4.
+4. Keep release claims tied to the integrated authenticated browser-to-Transcribe demonstration, final upload/history/export/delete, two-user ownership isolation, privacy-safe logs, and tested failure behavior.
 
 Mocks and historical server-side Transcribe experiments are preparation, not Option A release evidence.

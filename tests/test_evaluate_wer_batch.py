@@ -168,6 +168,29 @@ class TestBatchWerCommandLine(unittest.TestCase):
             result.stderr,
         )
 
+    def test_batch_handles_empty_hypothesis(self):
+        ref = self.create_transcript("empty_ref.txt", "the cat sat")
+        hyp = self.create_transcript("empty_hyp.txt", "")
+
+        manifest = self.create_manifest([
+            {
+                "reference_file": str(ref),
+                "hypothesis_file": str(hyp),
+            }
+        ])
+
+        result, output = self.run_evaluator(manifest)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        with output.open(newline="", encoding="utf-8") as file:
+            row = next(csv.DictReader(file))
+
+        self.assertEqual(row["reference_words"], "3")
+        self.assertEqual(row["hypothesis_words"], "0")
+        self.assertEqual(row["deletions"], "3")
+        self.assertEqual(row["wer_percent"], "100.0")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,6 +43,29 @@ class TestNormalizeText(unittest.TestCase):
             normalize_text("cafe\u0301")
         )
 
+    def test_empty_and_whitespace_input(self):
+        self.assertEqual(normalize_text(""), "")
+        self.assertEqual(normalize_text("   \t\n "), "")
+
+    def test_apostrophes_and_hyphens(self):
+        self.assertEqual(
+            normalize_text("can't state-of-the-art"),
+            "can t state of the art",
+        )
+
+    def test_unicode_compatibility_normalization(self):
+        self.assertEqual(normalize_text("ＦＵＬＬＷＩＤＴＨ"), "fullwidth")
+
+    def test_synthetic_normalization_fixture(self):
+        fixture_dir = PROJECT_ROOT / "tests" / "fixtures" / "transcripts"
+        reference = (fixture_dir / "normalization_reference.txt").read_text(
+            encoding="utf-8"
+        )
+        hypothesis = (fixture_dir / "normalization_hypothesis.txt").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(normalize_text(reference), normalize_text(hypothesis))
+
 
 class TestAlignWords(unittest.TestCase):
     """Tests for word-level alignment and edit counting."""
@@ -105,6 +128,44 @@ class TestAlignWords(unittest.TestCase):
     def test_both_empty(self):
         result = align_words([], [])
         self.assertEqual(result, (0, 0, 0, 0))
+
+    def test_repeated_words(self):
+        self.assertEqual(
+            align_words(
+                ["we", "really", "really", "like", "testing"],
+                ["we", "really", "like", "testing"],
+            ),
+            (0, 1, 0, 1),
+        )
+
+    def test_mixed_edits(self):
+        self.assertEqual(
+            align_words(
+                ["we", "really", "like", "testing"],
+                ["we", "truly", "testing", "today"],
+            ),
+            (3, 0, 0, 3),
+        )
+
+    def test_synthetic_alignment_fixture(self):
+        fixture_dir = PROJECT_ROOT / "tests" / "fixtures" / "transcripts"
+        reference = (fixture_dir / "alignment_reference.txt").read_text(
+            encoding="utf-8"
+        ).split()
+        hypothesis = (fixture_dir / "alignment_hypothesis.txt").read_text(
+            encoding="utf-8"
+        ).split()
+
+        self.assertEqual(align_words(reference, hypothesis), (3, 0, 0, 3))
+
+    def test_unambiguous_mixed_edits(self):
+        self.assertEqual(
+            align_words(
+                ["the", "quick", "brown", "fox", "jumps", "today"],
+                ["the", "fast", "fox", "jumps", "again", "today"],
+            ),
+            (1, 1, 1, 3),
+        )
 
 
 class TestWerCommandLine(unittest.TestCase):

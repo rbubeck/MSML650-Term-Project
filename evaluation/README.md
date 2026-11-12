@@ -10,16 +10,16 @@ This directory contains the migrated Python evaluation tools and preserves the e
 
 - The six original Python scripts have been migrated from `Scripts/` into `evaluation/scripts/`.
 - Python dependencies are pinned separately in the repository-root `requirements-evaluation.txt`.
-- Python unit tests use package imports and module execution.
-- The Python test suite now passes all **40 unit tests**, including additional synthetic tests for normalization, word alignment, repeated words, mixed edit types, and batch evaluation with an empty hypothesis.
-- Four small synthetic text fixtures are maintained under `tests/fixtures/transcripts/`. They cover normalization behavior and alignment edge cases without adding licensed transcripts or raw audio.
+- Python unit tests use package imports and module execution. All **40 unit tests** pass, including synthetic normalization, word alignment, repeated-word, mixed-edit, and batch-evaluation edge cases.
+- Four small synthetic text fixtures are maintained under `tests/fixtures/transcripts/`.
 - All six evaluation modules import successfully.
-- The full `npm run check` previously passed: formatting, lint, root and workspace TypeScript typechecks, 177 Vitest tests, and frontend/API/contracts/stream-client builds.
-- Existing `Datasets/` metadata and `Results/` artifacts are preserved; raw datasets and audio are not part of this migration.
+- The full `npm run check` previously passed, including formatting, lint, TypeScript typechecks, 177 Vitest tests, and frontend/API/contracts/stream-client builds.
+- Five LibriSpeech `test-clean` samples were streamed through Amazon Transcribe Streaming in `us-east-1`. Aggregate WER was **2.55%**: 4 substitutions, 0 deletions, and 0 insertions across 157 reference tokens.
+- The AMI `ES2004a` Mix-Headset recording was streamed through Amazon Transcribe Streaming. A preliminary filtered segment-based evaluation produced **11.83% WER**: 86 substitutions, 117 deletions, and 28 insertions across 1,953 normalized reference tokens. This is not a full-meeting WER; see the AMI evaluation limitations below.
+- These are local provider-transcription evaluations, not integrated Option A browser-to-Transcribe benchmarks.
 - The shared TypeScript suite does not yet invoke the Python WER tools.
-- One 4.016-second synthetic macOS voice file was manually streamed through Amazon Transcribe on 2026-11-02, proving SDK connectivity and partial/final delivery only. This is historical server-side connectivity evidence, not an Option A browser result.
-- No committed result is currently a controlled Amazon Transcribe WER, browser latency, concurrency, recovery, persistence, or deployed-service benchmark.
-- Under Option A, the browser receives provider results directly. The backend cannot independently verify the provider-to-browser transcript path; uploaded final text has client-supplied provenance. Evaluation must distinguish provider delivery from API acknowledgment and durable persistence.
+- No controlled browser latency, concurrency, recovery, persistence, or deployed-service benchmark has been completed.
+- Under Option A, the browser receives provider results directly. The backend cannot independently verify the provider-to-browser transcript path; uploaded final text has client-supplied provenance.
 
 ## WER methodology and dataset provenance
 
@@ -79,6 +79,11 @@ The repository does not currently record an exact upstream release identifier or
 - The LibriSpeech evaluator skips reference samples whose hypothesis files are missing and reports the missing count. Empty reference transcripts are skipped with a warning.
 - The batch evaluator requires both transcript files to exist and rejects empty reference transcripts.
 - The single-pair and batch WER scripts use the same normalization and alignment implementation. Before general WER normalization, the AMI reference pipeline applies dataset-specific normalization: it lowercases words, removes punctuation other than internal apostrophes, and strips leading/trailing underscores and apostrophes. This differs from `normalize_text()`, which replaces punctuation with spaces. This difference is a reproducibility consideration when comparing AMI results with other datasets.
+- For the preliminary AMI segment-based evaluation, truncated annotations and annotations overlapping another speaker were excluded. The remaining 1,834 annotated words were grouped into 176 time-based segments.
+- ASR pronunciation words were assigned to reference segments using their timestamps. Reference and hypothesis text were normalized using the shared WER normalization function before alignment.
+- The preliminary AMI evaluation contained 1,953 normalized reference tokens, 1,864 normalized hypothesis tokens, and 18 segments with no recognized hypothesis words. The resulting 11.83% WER is specific to this filtered segment-based method and should not be compared directly with the LibriSpeech result.
+- The five-sample LibriSpeech result is a small initial benchmark, not a full `test-clean` evaluation.
+
 ### Reproducibility and limitations
 
 For each reported WER result, record the dataset and subset, sample IDs, reference source, hypothesis-generation method, script version or Git commit, normalization procedure, number of evaluated samples, missing or excluded samples, total reference words, and substitution/deletion/insertion counts.
@@ -114,16 +119,14 @@ Report dataset and version, browser, Region, provider settings, sample counts, e
 
 The Python evaluation tools have been migrated into the shared project structure, synthetic edge-case tests have been added, and the WER methodology and dataset provenance are documented. The remaining work focuses on validating real transcription quality and supporting Option A release readiness.
 
-1. **Run reference-based transcription evaluations.** Generate hypothesis transcripts for the prepared AMI `ES2004a` and five-sample LibriSpeech subsets, then calculate WER and substitution, deletion, and insertion counts. Clearly identify the dataset, evaluated samples, and any missing hypotheses or exclusions.
+1. **Establish reproducible Amazon Transcribe benchmarks.** Evaluate actual Transcribe output against the prepared references where applicable. Record provider configuration, Region, sample counts, normalization methodology, and results. Keep historical SDK connectivity evidence separate from controlled benchmark results.
 
-2. **Establish reproducible Amazon Transcribe benchmarks.** Evaluate actual Transcribe output against the prepared references where applicable. Record provider configuration, Region, sample counts, normalization methodology, and results. Keep historical SDK connectivity evidence separate from controlled benchmark results.
+2. **Validate the integrated Option A workflow.** Coordinate with the team to test browser audio capture, streaming transcription, partial and final result delivery, session management, and final-result persistence through the API.
 
-3. **Validate the integrated Option A workflow.** Coordinate with the team to test browser audio capture, streaming transcription, partial and final result delivery, session management, and final-result persistence through the API.
+3. **Measure performance and reliability.** Capture audio-to-first-partial and audio-to-final latency, final-result-to-save-acknowledgment latency, save success rate, and session completion behavior. Test interruption, reconnect, retry, duplicate submission, and missing-final scenarios.
 
-4. **Measure performance and reliability.** Capture audio-to-first-partial and audio-to-final latency, final-result-to-save-acknowledgment latency, save success rate, and session completion behavior. Test interruption, reconnect, retry, duplicate submission, and missing-final scenarios.
+4. **Verify security and multi-user isolation.** Test session ownership, authorization failures, access boundaries, and privacy-safe telemetry. Confirm that logs do not expose audio, transcript text, credentials, JWTs, or signed URLs.
 
-5. **Verify security and multi-user isolation.** Test session ownership, authorization failures, access boundaries, and privacy-safe telemetry. Confirm that logs do not expose audio, transcript text, credentials, JWTs, or signed URLs.
+5. **Prepare release-quality evidence.** Document test configurations, procedures, sample counts, results, limitations, and unresolved issues. Distinguish synthetic unit tests, local evaluation, historical experiments, and integrated Option A results.
 
-6. **Prepare release-quality evidence.** Document test configurations, procedures, sample counts, results, limitations, and unresolved issues. Distinguish synthetic unit tests, local evaluation, historical experiments, and integrated Option A results.
-
-7. **Track cost and operational constraints.** Establish bounded test scopes and document expected or measured costs before any paid or load-testing activity. Obtain explicit approval before creating AWS resources or running paid tests.
+6. **Track cost and operational constraints.** Establish bounded test scopes and document expected or measured costs before any paid or load-testing activity. Obtain explicit approval before creating AWS resources or running paid tests.

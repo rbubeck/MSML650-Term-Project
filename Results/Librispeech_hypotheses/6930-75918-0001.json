@@ -1,0 +1,10 @@
+{
+  "audio_file": "Datasets/Librispeech/audio/6930-75918-0001.wav",
+  "output_file": "Results/Librispeech_hypotheses/6930-75918-0001.txt",
+  "region": "us-east-1",
+  "language": "en-US",
+  "sample_rate_hz": 16000,
+  "audio_duration_seconds": 14.225,
+  "elapsed_seconds": 14.837,
+  "transcript": "The English forwarded to the French baskets of flowers of which they had made a plentiful provision to greet the arrival of the young princess. The French in return invited the English to a supper which was to be given the next day."
+}

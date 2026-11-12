@@ -1,0 +1,10 @@
+{
+  "audio_file": "Datasets/Librispeech/audio/6930-75918-0002.wav",
+  "output_file": "Results/Librispeech_hypotheses/6930-75918-0002.txt",
+  "region": "us-east-1",
+  "language": "en-US",
+  "sample_rate_hz": 16000,
+  "audio_duration_seconds": 5.025,
+  "elapsed_seconds": 5.876,
+  "transcript": "Congratulations were poured in upon the princess everywhere during her journey."
+}

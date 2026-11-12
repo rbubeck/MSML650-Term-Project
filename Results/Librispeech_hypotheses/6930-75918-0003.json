@@ -1,0 +1,10 @@
+{
+  "audio_file": "Datasets/Librispeech/audio/6930-75918-0003.wav",
+  "output_file": "Results/Librispeech_hypotheses/6930-75918-0003.txt",
+  "region": "us-east-1",
+  "language": "en-US",
+  "sample_rate_hz": 16000,
+  "audio_duration_seconds": 23.315,
+  "elapsed_seconds": 23.765,
+  "transcript": "From the respect paid her on all sides she seemed like a queen, and from the adoration with which she was treated by 2 or 3, she appeared an object of worship. The queen mother gave the French the most affectionate reception. France was her native country, and she has suffered too much unhappiness in England for England to have made her forget France."
+}

@@ -1,0 +1,10 @@
+{
+  "audio_file": "Datasets/Librispeech/audio/6930-75918-0000.wav",
+  "output_file": "Results/Librispeech_hypotheses/6930-75918-0000.txt",
+  "region": "us-east-1",
+  "language": "en-US",
+  "sample_rate_hz": 16000,
+  "audio_duration_seconds": 3.505,
+  "elapsed_seconds": 4.107,
+  "transcript": "Concord returned to its place amidst the tents."
+}

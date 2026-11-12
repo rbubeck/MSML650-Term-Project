@@ -1,0 +1,10 @@
+{
+  "audio_file": "Datasets/Librispeech/audio/6930-75918-0004.wav",
+  "output_file": "Results/Librispeech_hypotheses/6930-75918-0004.txt",
+  "region": "us-east-1",
+  "language": "en-US",
+  "sample_rate_hz": 16000,
+  "audio_duration_seconds": 11.065,
+  "elapsed_seconds": 11.544,
+  "transcript": "She taught her daughter then by her own affection for it that love for a country where they had both been hospitably received and where a brilliant future opened for them."
+}

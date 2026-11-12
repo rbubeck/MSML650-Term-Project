@@ -1,0 +1,6 @@
+reference_file,hypothesis_file
+Results/Librispeech_references/6930-75918-0000.txt,Results/Librispeech_hypotheses/6930-75918-0000.txt
+Results/Librispeech_references/6930-75918-0001.txt,Results/Librispeech_hypotheses/6930-75918-0001.txt
+Results/Librispeech_references/6930-75918-0002.txt,Results/Librispeech_hypotheses/6930-75918-0002.txt
+Results/Librispeech_references/6930-75918-0003.txt,Results/Librispeech_hypotheses/6930-75918-0003.txt
+Results/Librispeech_references/6930-75918-0004.txt,Results/Librispeech_hypotheses/6930-75918-0004.txt

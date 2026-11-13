@@ -1,0 +1,3034 @@
+[
+  {
+    "start": 18.466,
+    "end": 18.476,
+    "word": "yeah",
+    "type": "pronunciation",
+    "confidence": 0.7686,
+    "speaker": null
+  },
+  {
+    "start": 25.096,
+    "end": 25.216,
+    "word": "So",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 25.216,
+    "end": 25.366,
+    "word": "we've",
+    "type": "pronunciation",
+    "confidence": 0.9013,
+    "speaker": null
+  },
+  {
+    "start": 25.366,
+    "end": 25.496,
+    "word": "got",
+    "type": "pronunciation",
+    "confidence": 0.9989,
+    "speaker": null
+  },
+  {
+    "start": 25.496,
+    "end": 25.696,
+    "word": "both",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 29.956,
+    "end": 30.006,
+    "word": "or",
+    "type": "pronunciation",
+    "confidence": 0.7122,
+    "speaker": null
+  },
+  {
+    "start": 30.006,
+    "end": 30.016,
+    "word": "not",
+    "type": "pronunciation",
+    "confidence": 0.6858,
+    "speaker": null
+  },
+  {
+    "start": 31.346,
+    "end": 31.656,
+    "word": "right",
+    "type": "pronunciation",
+    "confidence": 0.7377,
+    "speaker": null
+  },
+  {
+    "start": 31.736,
+    "end": 31.936,
+    "word": "both",
+    "type": "pronunciation",
+    "confidence": 0.9202,
+    "speaker": null
+  },
+  {
+    "start": 31.936,
+    "end": 32.096,
+    "word": "of",
+    "type": "pronunciation",
+    "confidence": 0.9962,
+    "speaker": null
+  },
+  {
+    "start": 71.576,
+    "end": 71.586,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.0049,
+    "speaker": null
+  },
+  {
+    "start": 80.476,
+    "end": 81.316,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.9994,
+    "speaker": null
+  },
+  {
+    "start": 82.636,
+    "end": 82.956,
+    "word": "everybody",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 273.956,
+    "end": 274.596,
+    "word": "next",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 275.016,
+    "end": 275.246,
+    "word": "You",
+    "type": "pronunciation",
+    "confidence": 0.6518,
+    "speaker": null
+  },
+  {
+    "start": 275.246,
+    "end": 275.256,
+    "word": "got",
+    "type": "pronunciation",
+    "confidence": 0.2041,
+    "speaker": null
+  },
+  {
+    "start": 275.256,
+    "end": 275.416,
+    "word": "me",
+    "type": "pronunciation",
+    "confidence": 0.8688,
+    "speaker": null
+  },
+  {
+    "start": 275.526,
+    "end": 276.236,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.5409,
+    "speaker": null
+  },
+  {
+    "start": 277.816,
+    "end": 277.906,
+    "word": "We're",
+    "type": "pronunciation",
+    "confidence": 0.1234,
+    "speaker": null
+  },
+  {
+    "start": 289.096,
+    "end": 289.666,
+    "word": "Uh",
+    "type": "pronunciation",
+    "confidence": 0.7959,
+    "speaker": null
+  },
+  {
+    "start": 290.056,
+    "end": 290.496,
+    "word": "yep",
+    "type": "pronunciation",
+    "confidence": 0.9663,
+    "speaker": null
+  },
+  {
+    "start": 314.896,
+    "end": 315.296,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9862,
+    "speaker": null
+  },
+  {
+    "start": 316.936,
+    "end": 317.266,
+    "word": "It's",
+    "type": "pronunciation",
+    "confidence": 0.9817,
+    "speaker": null
+  },
+  {
+    "start": 317.266,
+    "end": 317.496,
+    "word": "sitting",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 317.966,
+    "end": 318.436,
+    "word": "standing",
+    "type": "pronunciation",
+    "confidence": 0.9973,
+    "speaker": null
+  },
+  {
+    "start": 343.676,
+    "end": 344.076,
+    "word": "a",
+    "type": "pronunciation",
+    "confidence": 0.9963,
+    "speaker": null
+  },
+  {
+    "start": 345.176,
+    "end": 345.416,
+    "word": "Person",
+    "type": "pronunciation",
+    "confidence": 0.7157,
+    "speaker": null
+  },
+  {
+    "start": 349.096,
+    "end": 349.576,
+    "word": "dog",
+    "type": "pronunciation",
+    "confidence": 0.9986,
+    "speaker": null
+  },
+  {
+    "start": 350.136,
+    "end": 350.416,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.4826,
+    "speaker": null
+  },
+  {
+    "start": 350.646,
+    "end": 350.816,
+    "word": "thank",
+    "type": "pronunciation",
+    "confidence": 0.9964,
+    "speaker": null
+  },
+  {
+    "start": 350.816,
+    "end": 351.116,
+    "word": "you",
+    "type": "pronunciation",
+    "confidence": 0.9986,
+    "speaker": null
+  },
+  {
+    "start": 354.026,
+    "end": 354.086,
+    "word": "Oh",
+    "type": "pronunciation",
+    "confidence": 0.5139,
+    "speaker": null
+  },
+  {
+    "start": 354.146,
+    "end": 354.946,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.6652,
+    "speaker": null
+  },
+  {
+    "start": 356.586,
+    "end": 356.986,
+    "word": "Please",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 357.046,
+    "end": 357.066,
+    "word": "please",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 357.066,
+    "end": 357.226,
+    "word": "leave",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 357.226,
+    "end": 357.306,
+    "word": "me",
+    "type": "pronunciation",
+    "confidence": 0.9988,
+    "speaker": null
+  },
+  {
+    "start": 359.656,
+    "end": 359.666,
+    "word": "to",
+    "type": "pronunciation",
+    "confidence": 0.6715,
+    "speaker": null
+  },
+  {
+    "start": 359.666,
+    "end": 359.756,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.9439,
+    "speaker": null
+  },
+  {
+    "start": 360.856,
+    "end": 361.186,
+    "word": "standing",
+    "type": "pronunciation",
+    "confidence": 0.9852,
+    "speaker": null
+  },
+  {
+    "start": 361.186,
+    "end": 361.306,
+    "word": "on",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 361.306,
+    "end": 361.466,
+    "word": "a",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 361.466,
+    "end": 361.746,
+    "word": "chair",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 361.796,
+    "end": 361.946,
+    "word": "Well",
+    "type": "pronunciation",
+    "confidence": 0.5491,
+    "speaker": null
+  },
+  {
+    "start": 362.106,
+    "end": 362.286,
+    "word": "since",
+    "type": "pronunciation",
+    "confidence": 0.9842,
+    "speaker": null
+  },
+  {
+    "start": 373.556,
+    "end": 374.076,
+    "word": "great",
+    "type": "pronunciation",
+    "confidence": 0.9979,
+    "speaker": null
+  },
+  {
+    "start": 374.076,
+    "end": 374.086,
+    "word": "of",
+    "type": "pronunciation",
+    "confidence": 0.8879,
+    "speaker": null
+  },
+  {
+    "start": 394.376,
+    "end": 394.576,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.9085,
+    "speaker": null
+  },
+  {
+    "start": 394.656,
+    "end": 394.766,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 394.766,
+    "end": 394.856,
+    "word": "can",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 394.856,
+    "end": 394.896,
+    "word": "be",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 396.296,
+    "end": 396.376,
+    "word": "be",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 396.376,
+    "end": 396.416,
+    "word": "a",
+    "type": "pronunciation",
+    "confidence": 0.997,
+    "speaker": null
+  },
+  {
+    "start": 396.416,
+    "end": 397.316,
+    "word": "crocodile",
+    "type": "pronunciation",
+    "confidence": 0.9828,
+    "speaker": null
+  },
+  {
+    "start": 397.976,
+    "end": 398.126,
+    "word": "Well",
+    "type": "pronunciation",
+    "confidence": 0.6214,
+    "speaker": null
+  },
+  {
+    "start": 398.176,
+    "end": 398.296,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9963,
+    "speaker": null
+  },
+  {
+    "start": 398.296,
+    "end": 398.976,
+    "word": "was",
+    "type": "pronunciation",
+    "confidence": 0.9965,
+    "speaker": null
+  },
+  {
+    "start": 399.276,
+    "end": 399.286,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 399.286,
+    "end": 399.296,
+    "word": "was",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 399.296,
+    "end": 399.646,
+    "word": "first",
+    "type": "pronunciation",
+    "confidence": 0.9722,
+    "speaker": null
+  },
+  {
+    "start": 421.256,
+    "end": 421.376,
+    "word": "yeah",
+    "type": "pronunciation",
+    "confidence": 0.7264,
+    "speaker": null
+  },
+  {
+    "start": 421.616,
+    "end": 421.886,
+    "word": "and",
+    "type": "pronunciation",
+    "confidence": 0.9961,
+    "speaker": null
+  },
+  {
+    "start": 421.896,
+    "end": 422.396,
+    "word": "uh",
+    "type": "pronunciation",
+    "confidence": 0.9965,
+    "speaker": null
+  },
+  {
+    "start": 439.776,
+    "end": 440.536,
+    "word": "think",
+    "type": "pronunciation",
+    "confidence": 0.9972,
+    "speaker": null
+  },
+  {
+    "start": 445.086,
+    "end": 445.296,
+    "word": "skills",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 445.406,
+    "end": 445.616,
+    "word": "Mine's",
+    "type": "pronunciation",
+    "confidence": 0.7117,
+    "speaker": null
+  },
+  {
+    "start": 445.616,
+    "end": 445.856,
+    "word": "are",
+    "type": "pronunciation",
+    "confidence": 0.981,
+    "speaker": null
+  },
+  {
+    "start": 445.856,
+    "end": 446.756,
+    "word": "dreadful",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 465.416,
+    "end": 465.816,
+    "word": "Hopefully",
+    "type": "pronunciation",
+    "confidence": 0.9867,
+    "speaker": null
+  },
+  {
+    "start": 467.336,
+    "end": 467.756,
+    "word": "version",
+    "type": "pronunciation",
+    "confidence": 0.9978,
+    "speaker": null
+  },
+  {
+    "start": 468.576,
+    "end": 469.276,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 476.786,
+    "end": 477.186,
+    "word": "cat",
+    "type": "pronunciation",
+    "confidence": 0.9962,
+    "speaker": null
+  },
+  {
+    "start": 477.186,
+    "end": 477.766,
+    "word": "too",
+    "type": "pronunciation",
+    "confidence": 0.9374,
+    "speaker": null
+  },
+  {
+    "start": 481.256,
+    "end": 481.416,
+    "word": "Oh",
+    "type": "pronunciation",
+    "confidence": 0.9961,
+    "speaker": null
+  },
+  {
+    "start": 481.416,
+    "end": 481.516,
+    "word": "dear",
+    "type": "pronunciation",
+    "confidence": 0.9932,
+    "speaker": null
+  },
+  {
+    "start": 481.576,
+    "end": 481.646,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9464,
+    "speaker": null
+  },
+  {
+    "start": 481.646,
+    "end": 481.856,
+    "word": "doesn't",
+    "type": "pronunciation",
+    "confidence": 0.9953,
+    "speaker": null
+  },
+  {
+    "start": 483.916,
+    "end": 483.926,
+    "word": "That",
+    "type": "pronunciation",
+    "confidence": 0.018,
+    "speaker": null
+  },
+  {
+    "start": 487.356,
+    "end": 487.716,
+    "word": "Uh",
+    "type": "pronunciation",
+    "confidence": 0.5616,
+    "speaker": null
+  },
+  {
+    "start": 489.736,
+    "end": 491.036,
+    "word": "honestly",
+    "type": "pronunciation",
+    "confidence": 0.9994,
+    "speaker": null
+  },
+  {
+    "start": 494.396,
+    "end": 494.896,
+    "word": "behind",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 497.756,
+    "end": 498.016,
+    "word": "That's",
+    "type": "pronunciation",
+    "confidence": 0.9656,
+    "speaker": null
+  },
+  {
+    "start": 498.016,
+    "end": 498.136,
+    "word": "my",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 498.136,
+    "end": 498.656,
+    "word": "dreadful",
+    "type": "pronunciation",
+    "confidence": 0.9945,
+    "speaker": null
+  },
+  {
+    "start": 498.736,
+    "end": 498.976,
+    "word": "that's",
+    "type": "pronunciation",
+    "confidence": 0.9591,
+    "speaker": null
+  },
+  {
+    "start": 498.976,
+    "end": 499.136,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.9987,
+    "speaker": null
+  },
+  {
+    "start": 499.136,
+    "end": 499.476,
+    "word": "worst",
+    "type": "pronunciation",
+    "confidence": 0.9983,
+    "speaker": null
+  },
+  {
+    "start": 499.656,
+    "end": 499.846,
+    "word": "yeah",
+    "type": "pronunciation",
+    "confidence": 0.9761,
+    "speaker": null
+  },
+  {
+    "start": 499.976,
+    "end": 500.376,
+    "word": "that's",
+    "type": "pronunciation",
+    "confidence": 0.6183,
+    "speaker": null
+  },
+  {
+    "start": 502.856,
+    "end": 502.976,
+    "word": "You",
+    "type": "pronunciation",
+    "confidence": 0.9484,
+    "speaker": null
+  },
+  {
+    "start": 502.976,
+    "end": 503.176,
+    "word": "can",
+    "type": "pronunciation",
+    "confidence": 0.9982,
+    "speaker": null
+  },
+  {
+    "start": 503.176,
+    "end": 503.296,
+    "word": "tell",
+    "type": "pronunciation",
+    "confidence": 0.9991,
+    "speaker": null
+  },
+  {
+    "start": 503.296,
+    "end": 503.456,
+    "word": "it's",
+    "type": "pronunciation",
+    "confidence": 0.992,
+    "speaker": null
+  },
+  {
+    "start": 503.456,
+    "end": 503.656,
+    "word": "a",
+    "type": "pronunciation",
+    "confidence": 0.997,
+    "speaker": null
+  },
+  {
+    "start": 503.656,
+    "end": 504.226,
+    "word": "flying",
+    "type": "pronunciation",
+    "confidence": 0.999,
+    "speaker": null
+  },
+  {
+    "start": 504.226,
+    "end": 504.556,
+    "word": "animal",
+    "type": "pronunciation",
+    "confidence": 0.9979,
+    "speaker": null
+  },
+  {
+    "start": 520.856,
+    "end": 521.276,
+    "word": "independent",
+    "type": "pronunciation",
+    "confidence": 0.9961,
+    "speaker": null
+  },
+  {
+    "start": 523.876,
+    "end": 524.456,
+    "word": "golf",
+    "type": "pronunciation",
+    "confidence": 0.9962,
+    "speaker": null
+  },
+  {
+    "start": 524.936,
+    "end": 525.056,
+    "word": "Are",
+    "type": "pronunciation",
+    "confidence": 0.7764,
+    "speaker": null
+  },
+  {
+    "start": 525.056,
+    "end": 525.496,
+    "word": "they",
+    "type": "pronunciation",
+    "confidence": 0.9974,
+    "speaker": null
+  },
+  {
+    "start": 526.256,
+    "end": 527.096,
+    "word": "00",
+    "type": "pronunciation",
+    "confidence": 0.8959,
+    "speaker": null
+  },
+  {
+    "start": 527.176,
+    "end": 527.476,
+    "word": "right",
+    "type": "pronunciation",
+    "confidence": 0.9972,
+    "speaker": null
+  },
+  {
+    "start": 527.576,
+    "end": 527.856,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.997,
+    "speaker": null
+  },
+  {
+    "start": 527.926,
+    "end": 528.056,
+    "word": "I'm",
+    "type": "pronunciation",
+    "confidence": 0.9955,
+    "speaker": null
+  },
+  {
+    "start": 528.056,
+    "end": 528.216,
+    "word": "not",
+    "type": "pronunciation",
+    "confidence": 0.9975,
+    "speaker": null
+  },
+  {
+    "start": 528.216,
+    "end": 528.336,
+    "word": "good",
+    "type": "pronunciation",
+    "confidence": 0.998,
+    "speaker": null
+  },
+  {
+    "start": 528.336,
+    "end": 528.536,
+    "word": "at",
+    "type": "pronunciation",
+    "confidence": 0.9966,
+    "speaker": null
+  },
+  {
+    "start": 545.126,
+    "end": 545.566,
+    "word": "dear",
+    "type": "pronunciation",
+    "confidence": 0.9988,
+    "speaker": null
+  },
+  {
+    "start": 553.986,
+    "end": 554.346,
+    "word": "go",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 554.866,
+    "end": 555.026,
+    "word": "hope",
+    "type": "pronunciation",
+    "confidence": 0.9457,
+    "speaker": null
+  },
+  {
+    "start": 574.996,
+    "end": 575.476,
+    "word": "ideas",
+    "type": "pronunciation",
+    "confidence": 0.9993,
+    "speaker": null
+  },
+  {
+    "start": 576.496,
+    "end": 577.116,
+    "word": "17",
+    "type": "pronunciation",
+    "confidence": 0.9887,
+    "speaker": null
+  },
+  {
+    "start": 577.116,
+    "end": 577.126,
+    "word": "something",
+    "type": "pronunciation",
+    "confidence": 0.8453,
+    "speaker": null
+  },
+  {
+    "start": 577.126,
+    "end": 577.136,
+    "word": "like",
+    "type": "pronunciation",
+    "confidence": 0.5398,
+    "speaker": null
+  },
+  {
+    "start": 577.136,
+    "end": 577.146,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.6486,
+    "speaker": null
+  },
+  {
+    "start": 580.676,
+    "end": 580.996,
+    "word": "something",
+    "type": "pronunciation",
+    "confidence": 0.9984,
+    "speaker": null
+  },
+  {
+    "start": 580.996,
+    "end": 581.006,
+    "word": "like",
+    "type": "pronunciation",
+    "confidence": 0.8382,
+    "speaker": null
+  },
+  {
+    "start": 581.006,
+    "end": 581.176,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.8555,
+    "speaker": null
+  },
+  {
+    "start": 583.986,
+    "end": 584.076,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.9911,
+    "speaker": null
+  },
+  {
+    "start": 584.196,
+    "end": 584.316,
+    "word": "about",
+    "type": "pronunciation",
+    "confidence": 0.9836,
+    "speaker": null
+  },
+  {
+    "start": 584.316,
+    "end": 585.836,
+    "word": "1717",
+    "type": "pronunciation",
+    "confidence": 0.8141,
+    "speaker": null
+  },
+  {
+    "start": 585.836,
+    "end": 586.066,
+    "word": "pounds",
+    "type": "pronunciation",
+    "confidence": 0.996,
+    "speaker": null
+  },
+  {
+    "start": 586.396,
+    "end": 586.846,
+    "word": "OK",
+    "type": "pronunciation",
+    "confidence": 0.8044,
+    "speaker": null
+  },
+  {
+    "start": 587.236,
+    "end": 587.596,
+    "word": "That's",
+    "type": "pronunciation",
+    "confidence": 0.5469,
+    "speaker": null
+  },
+  {
+    "start": 587.596,
+    "end": 587.966,
+    "word": "expensive",
+    "type": "pronunciation",
+    "confidence": 0.8988,
+    "speaker": null
+  },
+  {
+    "start": 590.786,
+    "end": 590.956,
+    "word": "can't",
+    "type": "pronunciation",
+    "confidence": 0.9907,
+    "speaker": null
+  },
+  {
+    "start": 590.956,
+    "end": 591.096,
+    "word": "we",
+    "type": "pronunciation",
+    "confidence": 0.9965,
+    "speaker": null
+  },
+  {
+    "start": 591.106,
+    "end": 591.236,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.6863,
+    "speaker": null
+  },
+  {
+    "start": 591.236,
+    "end": 591.436,
+    "word": "think",
+    "type": "pronunciation",
+    "confidence": 0.9459,
+    "speaker": null
+  },
+  {
+    "start": 591.436,
+    "end": 591.686,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9797,
+    "speaker": null
+  },
+  {
+    "start": 591.836,
+    "end": 591.956,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9863,
+    "speaker": null
+  },
+  {
+    "start": 591.956,
+    "end": 592.136,
+    "word": "think",
+    "type": "pronunciation",
+    "confidence": 0.9941,
+    "speaker": null
+  },
+  {
+    "start": 592.136,
+    "end": 592.226,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9396,
+    "speaker": null
+  },
+  {
+    "start": 594.116,
+    "end": 594.196,
+    "word": "put",
+    "type": "pronunciation",
+    "confidence": 0.8891,
+    "speaker": null
+  },
+  {
+    "start": 594.196,
+    "end": 594.346,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9429,
+    "speaker": null
+  },
+  {
+    "start": 594.346,
+    "end": 594.436,
+    "word": "in",
+    "type": "pronunciation",
+    "confidence": 0.8954,
+    "speaker": null
+  },
+  {
+    "start": 594.436,
+    "end": 594.536,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.4569,
+    "speaker": null
+  },
+  {
+    "start": 594.536,
+    "end": 594.836,
+    "word": "shared",
+    "type": "pronunciation",
+    "confidence": 0.8636,
+    "speaker": null
+  },
+  {
+    "start": 594.836,
+    "end": 595.116,
+    "word": "folder",
+    "type": "pronunciation",
+    "confidence": 0.8052,
+    "speaker": null
+  },
+  {
+    "start": 595.316,
+    "end": 595.596,
+    "word": "Having",
+    "type": "pronunciation",
+    "confidence": 0.4862,
+    "speaker": null
+  },
+  {
+    "start": 595.596,
+    "end": 595.786,
+    "word": "said",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 604.016,
+    "end": 604.236,
+    "word": "it'd",
+    "type": "pronunciation",
+    "confidence": 0.0229,
+    "speaker": null
+  },
+  {
+    "start": 605.976,
+    "end": 606.176,
+    "word": "buy",
+    "type": "pronunciation",
+    "confidence": 0.9973,
+    "speaker": null
+  },
+  {
+    "start": 606.176,
+    "end": 606.616,
+    "word": "one",
+    "type": "pronunciation",
+    "confidence": 0.9969,
+    "speaker": null
+  },
+  {
+    "start": 608.056,
+    "end": 608.196,
+    "word": "So",
+    "type": "pronunciation",
+    "confidence": 0.997,
+    "speaker": null
+  },
+  {
+    "start": 608.196,
+    "end": 608.336,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 608.336,
+    "end": 608.536,
+    "word": "suppose",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 608.536,
+    "end": 608.816,
+    "word": "later",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 608.816,
+    "end": 609.056,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 609.056,
+    "end": 609.256,
+    "word": "depends",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 613.576,
+    "end": 613.796,
+    "word": "option",
+    "type": "pronunciation",
+    "confidence": 0.9985,
+    "speaker": null
+  },
+  {
+    "start": 614.456,
+    "end": 614.686,
+    "word": "um",
+    "type": "pronunciation",
+    "confidence": 0.6442,
+    "speaker": null
+  },
+  {
+    "start": 617.346,
+    "end": 617.706,
+    "word": "So",
+    "type": "pronunciation",
+    "confidence": 0.9148,
+    "speaker": null
+  },
+  {
+    "start": 619.276,
+    "end": 619.846,
+    "word": "Half",
+    "type": "pronunciation",
+    "confidence": 0.4186,
+    "speaker": null
+  },
+  {
+    "start": 621.876,
+    "end": 622.146,
+    "word": "taken",
+    "type": "pronunciation",
+    "confidence": 0.9989,
+    "speaker": null
+  },
+  {
+    "start": 635.106,
+    "end": 635.676,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9987,
+    "speaker": null
+  },
+  {
+    "start": 636.466,
+    "end": 636.966,
+    "word": "um",
+    "type": "pronunciation",
+    "confidence": 0.9946,
+    "speaker": null
+  },
+  {
+    "start": 644.656,
+    "end": 645.256,
+    "word": "groups",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 645.256,
+    "end": 645.496,
+    "word": "just",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 645.496,
+    "end": 645.776,
+    "word": "to",
+    "type": "pronunciation",
+    "confidence": 0.8486,
+    "speaker": null
+  },
+  {
+    "start": 649.516,
+    "end": 649.716,
+    "word": "everyone",
+    "type": "pronunciation",
+    "confidence": 0.9966,
+    "speaker": null
+  },
+  {
+    "start": 649.716,
+    "end": 649.956,
+    "word": "user",
+    "type": "pronunciation",
+    "confidence": 0.9947,
+    "speaker": null
+  },
+  {
+    "start": 649.956,
+    "end": 650.266,
+    "word": "friendly",
+    "type": "pronunciation",
+    "confidence": 0.9964,
+    "speaker": null
+  },
+  {
+    "start": 653.416,
+    "end": 653.656,
+    "word": "Big",
+    "type": "pronunciation",
+    "confidence": 0.9942,
+    "speaker": null
+  },
+  {
+    "start": 653.656,
+    "end": 654.016,
+    "word": "target",
+    "type": "pronunciation",
+    "confidence": 0.9991,
+    "speaker": null
+  },
+  {
+    "start": 654.016,
+    "end": 654.386,
+    "word": "group",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 655.146,
+    "end": 655.506,
+    "word": "Yes",
+    "type": "pronunciation",
+    "confidence": 0.9965,
+    "speaker": null
+  },
+  {
+    "start": 661.136,
+    "end": 661.566,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 666.406,
+    "end": 667.206,
+    "word": "like",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 667.226,
+    "end": 667.446,
+    "word": "Australia",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 687.256,
+    "end": 687.536,
+    "word": "all",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 687.536,
+    "end": 687.696,
+    "word": "set",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 687.696,
+    "end": 688.116,
+    "word": "up",
+    "type": "pronunciation",
+    "confidence": 0.9985,
+    "speaker": null
+  },
+  {
+    "start": 690.456,
+    "end": 691.006,
+    "word": "controls",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 691.736,
+    "end": 691.966,
+    "word": "Um",
+    "type": "pronunciation",
+    "confidence": 0.8316,
+    "speaker": null
+  },
+  {
+    "start": 692.016,
+    "end": 692.136,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 700.576,
+    "end": 700.966,
+    "word": "well",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 701.456,
+    "end": 701.536,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 701.536,
+    "end": 701.726,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.9994,
+    "speaker": null
+  },
+  {
+    "start": 701.726,
+    "end": 701.846,
+    "word": "might",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 706.256,
+    "end": 706.266,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.3887,
+    "speaker": null
+  },
+  {
+    "start": 706.266,
+    "end": 706.456,
+    "word": "didn't",
+    "type": "pronunciation",
+    "confidence": 0.1723,
+    "speaker": null
+  },
+  {
+    "start": 706.456,
+    "end": 706.606,
+    "word": "have",
+    "type": "pronunciation",
+    "confidence": 0.7749,
+    "speaker": null
+  },
+  {
+    "start": 706.606,
+    "end": 707.126,
+    "word": "6",
+    "type": "pronunciation",
+    "confidence": 0.5324,
+    "speaker": null
+  },
+  {
+    "start": 711.306,
+    "end": 711.526,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 711.906,
+    "end": 712.356,
+    "word": "Mm-hmm",
+    "type": "pronunciation",
+    "confidence": 0.8182,
+    "speaker": null
+  },
+  {
+    "start": 712.946,
+    "end": 713.306,
+    "word": "My",
+    "type": "pronunciation",
+    "confidence": 0.9893,
+    "speaker": null
+  },
+  {
+    "start": 713.306,
+    "end": 713.586,
+    "word": "experience",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 727.016,
+    "end": 727.026,
+    "word": "basic",
+    "type": "pronunciation",
+    "confidence": 0.9979,
+    "speaker": null
+  },
+  {
+    "start": 727.026,
+    "end": 727.736,
+    "word": "functions",
+    "type": "pronunciation",
+    "confidence": 0.9943,
+    "speaker": null
+  },
+  {
+    "start": 727.746,
+    "end": 727.826,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 727.826,
+    "end": 727.986,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 727.986,
+    "end": 728.106,
+    "word": "think",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 734.736,
+    "end": 734.996,
+    "word": "well",
+    "type": "pronunciation",
+    "confidence": 0.9994,
+    "speaker": null
+  },
+  {
+    "start": 735.076,
+    "end": 735.256,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.7805,
+    "speaker": null
+  },
+  {
+    "start": 735.336,
+    "end": 735.496,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.906,
+    "speaker": null
+  },
+  {
+    "start": 735.496,
+    "end": 735.696,
+    "word": "main",
+    "type": "pronunciation",
+    "confidence": 0.9191,
+    "speaker": null
+  },
+  {
+    "start": 735.776,
+    "end": 736.016,
+    "word": "that's",
+    "type": "pronunciation",
+    "confidence": 0.9786,
+    "speaker": null
+  },
+  {
+    "start": 737.036,
+    "end": 737.216,
+    "word": "anyway",
+    "type": "pronunciation",
+    "confidence": 0.9975,
+    "speaker": null
+  },
+  {
+    "start": 737.326,
+    "end": 737.456,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9966,
+    "speaker": null
+  },
+  {
+    "start": 737.456,
+    "end": 737.956,
+    "word": "mean",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 746.096,
+    "end": 746.576,
+    "word": "words",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 746.576,
+    "end": 746.696,
+    "word": "saying",
+    "type": "pronunciation",
+    "confidence": 0.9994,
+    "speaker": null
+  },
+  {
+    "start": 747.576,
+    "end": 748.206,
+    "word": "just",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 750.416,
+    "end": 750.696,
+    "word": "button",
+    "type": "pronunciation",
+    "confidence": 0.9881,
+    "speaker": null
+  },
+  {
+    "start": 750.696,
+    "end": 751.046,
+    "word": "or",
+    "type": "pronunciation",
+    "confidence": 0.7154,
+    "speaker": null
+  },
+  {
+    "start": 751.046,
+    "end": 751.696,
+    "word": "symbols",
+    "type": "pronunciation",
+    "confidence": 0.9746,
+    "speaker": null
+  },
+  {
+    "start": 752.606,
+    "end": 752.866,
+    "word": "necessarily",
+    "type": "pronunciation",
+    "confidence": 0.9972,
+    "speaker": null
+  },
+  {
+    "start": 752.866,
+    "end": 752.876,
+    "word": "understand",
+    "type": "pronunciation",
+    "confidence": 0.9982,
+    "speaker": null
+  },
+  {
+    "start": 755.056,
+    "end": 755.556,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.9916,
+    "speaker": null
+  },
+  {
+    "start": 755.556,
+    "end": 755.826,
+    "word": "have",
+    "type": "pronunciation",
+    "confidence": 0.8211,
+    "speaker": null
+  },
+  {
+    "start": 755.826,
+    "end": 755.836,
+    "word": "when",
+    "type": "pronunciation",
+    "confidence": 0.9798,
+    "speaker": null
+  },
+  {
+    "start": 755.836,
+    "end": 755.866,
+    "word": "they're",
+    "type": "pronunciation",
+    "confidence": 0.9658,
+    "speaker": null
+  },
+  {
+    "start": 768.576,
+    "end": 769.016,
+    "word": "options",
+    "type": "pronunciation",
+    "confidence": 0.9929,
+    "speaker": null
+  },
+  {
+    "start": 769.016,
+    "end": 769.106,
+    "word": "kind",
+    "type": "pronunciation",
+    "confidence": 0.9984,
+    "speaker": null
+  },
+  {
+    "start": 775.526,
+    "end": 775.656,
+    "word": "to",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 775.656,
+    "end": 775.856,
+    "word": "look",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 775.856,
+    "end": 776.246,
+    "word": "at",
+    "type": "pronunciation",
+    "confidence": 0.9986,
+    "speaker": null
+  },
+  {
+    "start": 777.136,
+    "end": 777.896,
+    "word": "obvious",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 777.896,
+    "end": 778.056,
+    "word": "what",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 778.056,
+    "end": 778.256,
+    "word": "you're",
+    "type": "pronunciation",
+    "confidence": 0.995,
+    "speaker": null
+  },
+  {
+    "start": 778.256,
+    "end": 778.826,
+    "word": "doing",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 779.336,
+    "end": 779.726,
+    "word": "Um",
+    "type": "pronunciation",
+    "confidence": 0.9966,
+    "speaker": null
+  },
+  {
+    "start": 779.816,
+    "end": 780.076,
+    "word": "actually",
+    "type": "pronunciation",
+    "confidence": 0.9637,
+    "speaker": null
+  },
+  {
+    "start": 784.306,
+    "end": 784.596,
+    "word": "phone",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 787.216,
+    "end": 787.296,
+    "word": "got",
+    "type": "pronunciation",
+    "confidence": 0.999,
+    "speaker": null
+  },
+  {
+    "start": 787.296,
+    "end": 787.416,
+    "word": "a",
+    "type": "pronunciation",
+    "confidence": 0.9991,
+    "speaker": null
+  },
+  {
+    "start": 787.416,
+    "end": 787.696,
+    "word": "menu",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 787.696,
+    "end": 788.166,
+    "word": "display",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 793.196,
+    "end": 793.376,
+    "word": "little",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 793.376,
+    "end": 793.936,
+    "word": "LCD",
+    "type": "pronunciation",
+    "confidence": 0.999,
+    "speaker": null
+  },
+  {
+    "start": 793.936,
+    "end": 794.776,
+    "word": "display",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 794.776,
+    "end": 794.796,
+    "word": "on",
+    "type": "pronunciation",
+    "confidence": 0.6955,
+    "speaker": null
+  },
+  {
+    "start": 794.796,
+    "end": 794.836,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.6824,
+    "speaker": null
+  },
+  {
+    "start": 794.836,
+    "end": 794.846,
+    "word": "same",
+    "type": "pronunciation",
+    "confidence": 0.9129,
+    "speaker": null
+  },
+  {
+    "start": 803.126,
+    "end": 803.436,
+    "word": "mobile",
+    "type": "pronunciation",
+    "confidence": 0.9985,
+    "speaker": null
+  },
+  {
+    "start": 804.456,
+    "end": 804.856,
+    "word": "and",
+    "type": "pronunciation",
+    "confidence": 0.9798,
+    "speaker": null
+  },
+  {
+    "start": 804.856,
+    "end": 804.936,
+    "word": "with",
+    "type": "pronunciation",
+    "confidence": 0.9831,
+    "speaker": null
+  },
+  {
+    "start": 804.936,
+    "end": 805.476,
+    "word": "menus",
+    "type": "pronunciation",
+    "confidence": 0.9904,
+    "speaker": null
+  },
+  {
+    "start": 810.686,
+    "end": 811.076,
+    "word": "also",
+    "type": "pronunciation",
+    "confidence": 0.9962,
+    "speaker": null
+  },
+  {
+    "start": 811.176,
+    "end": 811.546,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.9779,
+    "speaker": null
+  },
+  {
+    "start": 816.246,
+    "end": 816.456,
+    "word": "You",
+    "type": "pronunciation",
+    "confidence": 0.5844,
+    "speaker": null
+  },
+  {
+    "start": 816.456,
+    "end": 816.536,
+    "word": "mean",
+    "type": "pronunciation",
+    "confidence": 0.5701,
+    "speaker": null
+  },
+  {
+    "start": 816.536,
+    "end": 816.656,
+    "word": "to",
+    "type": "pronunciation",
+    "confidence": 0.8941,
+    "speaker": null
+  },
+  {
+    "start": 816.656,
+    "end": 816.816,
+    "word": "say",
+    "type": "pronunciation",
+    "confidence": 0.5971,
+    "speaker": null
+  },
+  {
+    "start": 816.816,
+    "end": 817.476,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.5809,
+    "speaker": null
+  },
+  {
+    "start": 817.736,
+    "end": 817.926,
+    "word": "My",
+    "type": "pronunciation",
+    "confidence": 0.9964,
+    "speaker": null
+  },
+  {
+    "start": 817.926,
+    "end": 818.246,
+    "word": "granddad",
+    "type": "pronunciation",
+    "confidence": 0.8917,
+    "speaker": null
+  },
+  {
+    "start": 818.246,
+    "end": 818.416,
+    "word": "can",
+    "type": "pronunciation",
+    "confidence": 0.9978,
+    "speaker": null
+  },
+  {
+    "start": 818.416,
+    "end": 818.796,
+    "word": "answer",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 819.856,
+    "end": 820.016,
+    "word": "but",
+    "type": "pronunciation",
+    "confidence": 0.9989,
+    "speaker": null
+  },
+  {
+    "start": 820.016,
+    "end": 820.216,
+    "word": "he",
+    "type": "pronunciation",
+    "confidence": 0.9989,
+    "speaker": null
+  },
+  {
+    "start": 820.216,
+    "end": 820.816,
+    "word": "couldn't",
+    "type": "pronunciation",
+    "confidence": 0.9956,
+    "speaker": null
+  },
+  {
+    "start": 821.376,
+    "end": 821.536,
+    "word": "dream",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 821.536,
+    "end": 821.776,
+    "word": "of",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 821.776,
+    "end": 822.216,
+    "word": "texting",
+    "type": "pronunciation",
+    "confidence": 0.9985,
+    "speaker": null
+  },
+  {
+    "start": 822.216,
+    "end": 822.376,
+    "word": "or",
+    "type": "pronunciation",
+    "confidence": 0.9989,
+    "speaker": null
+  },
+  {
+    "start": 822.376,
+    "end": 822.726,
+    "word": "something",
+    "type": "pronunciation",
+    "confidence": 0.9974,
+    "speaker": null
+  },
+  {
+    "start": 822.726,
+    "end": 822.896,
+    "word": "like",
+    "type": "pronunciation",
+    "confidence": 0.9969,
+    "speaker": null
+  },
+  {
+    "start": 822.896,
+    "end": 823.416,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 829.216,
+    "end": 829.456,
+    "word": "things",
+    "type": "pronunciation",
+    "confidence": 0.9515,
+    "speaker": null
+  },
+  {
+    "start": 830.416,
+    "end": 830.616,
+    "word": "My",
+    "type": "pronunciation",
+    "confidence": 0.9296,
+    "speaker": null
+  },
+  {
+    "start": 830.616,
+    "end": 830.976,
+    "word": "granddad's",
+    "type": "pronunciation",
+    "confidence": 0.8878,
+    "speaker": null
+  },
+  {
+    "start": 830.976,
+    "end": 831.216,
+    "word": "actually",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 831.216,
+    "end": 831.446,
+    "word": "better",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 832.856,
+    "end": 833.286,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 833.296,
+    "end": 833.556,
+    "word": "Right",
+    "type": "pronunciation",
+    "confidence": 0.9964,
+    "speaker": null
+  },
+  {
+    "start": 838.426,
+    "end": 838.946,
+    "word": "with",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 841.236,
+    "end": 841.586,
+    "word": "generation",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 841.586,
+    "end": 842.086,
+    "word": "perhaps",
+    "type": "pronunciation",
+    "confidence": 0.9985,
+    "speaker": null
+  },
+  {
+    "start": 842.466,
+    "end": 842.586,
+    "word": "and",
+    "type": "pronunciation",
+    "confidence": 0.9966,
+    "speaker": null
+  },
+  {
+    "start": 842.586,
+    "end": 842.906,
+    "word": "that's",
+    "type": "pronunciation",
+    "confidence": 0.9986,
+    "speaker": null
+  },
+  {
+    "start": 842.906,
+    "end": 843.366,
+    "word": "another",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 843.366,
+    "end": 843.376,
+    "word": "issue",
+    "type": "pronunciation",
+    "confidence": 0.9963,
+    "speaker": null
+  },
+  {
+    "start": 843.376,
+    "end": 843.386,
+    "word": "how",
+    "type": "pronunciation",
+    "confidence": 0.9957,
+    "speaker": null
+  },
+  {
+    "start": 843.386,
+    "end": 843.396,
+    "word": "we",
+    "type": "pronunciation",
+    "confidence": 0.9831,
+    "speaker": null
+  },
+  {
+    "start": 843.396,
+    "end": 844.466,
+    "word": "tackle",
+    "type": "pronunciation",
+    "confidence": 0.9863,
+    "speaker": null
+  },
+  {
+    "start": 844.466,
+    "end": 844.686,
+    "word": "that",
+    "type": "pronunciation",
+    "confidence": 0.9963,
+    "speaker": null
+  },
+  {
+    "start": 844.706,
+    "end": 844.786,
+    "word": "Well",
+    "type": "pronunciation",
+    "confidence": 0.456,
+    "speaker": null
+  },
+  {
+    "start": 864.376,
+    "end": 864.516,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.9753,
+    "speaker": null
+  },
+  {
+    "start": 864.516,
+    "end": 864.576,
+    "word": "know",
+    "type": "pronunciation",
+    "confidence": 0.959,
+    "speaker": null
+  },
+  {
+    "start": 864.616,
+    "end": 864.976,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9806,
+    "speaker": null
+  },
+  {
+    "start": 864.976,
+    "end": 865.106,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.3137,
+    "speaker": null
+  },
+  {
+    "start": 865.106,
+    "end": 865.266,
+    "word": "know",
+    "type": "pronunciation",
+    "confidence": 0.7398,
+    "speaker": null
+  },
+  {
+    "start": 865.266,
+    "end": 865.546,
+    "word": "how",
+    "type": "pronunciation",
+    "confidence": 0.8755,
+    "speaker": null
+  },
+  {
+    "start": 868.856,
+    "end": 870.246,
+    "word": "Windows-based",
+    "type": "pronunciation",
+    "confidence": 0.8398,
+    "speaker": null
+  },
+  {
+    "start": 870.246,
+    "end": 870.416,
+    "word": "Oh",
+    "type": "pronunciation",
+    "confidence": 0.9376,
+    "speaker": null
+  },
+  {
+    "start": 870.416,
+    "end": 870.696,
+    "word": "yeah",
+    "type": "pronunciation",
+    "confidence": 0.9962,
+    "speaker": null
+  },
+  {
+    "start": 893.416,
+    "end": 893.736,
+    "word": "get",
+    "type": "pronunciation",
+    "confidence": 0.9973,
+    "speaker": null
+  },
+  {
+    "start": 893.856,
+    "end": 894.136,
+    "word": "you'd",
+    "type": "pronunciation",
+    "confidence": 0.9647,
+    "speaker": null
+  },
+  {
+    "start": 895.416,
+    "end": 895.536,
+    "word": "keep",
+    "type": "pronunciation",
+    "confidence": 0.9965,
+    "speaker": null
+  },
+  {
+    "start": 895.536,
+    "end": 895.696,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9991,
+    "speaker": null
+  },
+  {
+    "start": 898.536,
+    "end": 898.686,
+    "word": "anyway",
+    "type": "pronunciation",
+    "confidence": 0.8633,
+    "speaker": null
+  },
+  {
+    "start": 898.736,
+    "end": 898.856,
+    "word": "is",
+    "type": "pronunciation",
+    "confidence": 0.9127,
+    "speaker": null
+  },
+  {
+    "start": 898.856,
+    "end": 899.006,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9969,
+    "speaker": null
+  },
+  {
+    "start": 904.456,
+    "end": 905.076,
+    "word": "books",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 905.636,
+    "end": 905.976,
+    "word": "Obviously",
+    "type": "pronunciation",
+    "confidence": 0.9809,
+    "speaker": null
+  },
+  {
+    "start": 905.976,
+    "end": 906.076,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 906.076,
+    "end": 906.546,
+    "word": "displays",
+    "type": "pronunciation",
+    "confidence": 0.999,
+    "speaker": null
+  },
+  {
+    "start": 906.546,
+    "end": 906.876,
+    "word": "less",
+    "type": "pronunciation",
+    "confidence": 0.9936,
+    "speaker": null
+  },
+  {
+    "start": 906.876,
+    "end": 907.036,
+    "word": "on",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 907.036,
+    "end": 907.266,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 907.266,
+    "end": 907.496,
+    "word": "screen",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 923.296,
+    "end": 923.996,
+    "word": "Things",
+    "type": "pronunciation",
+    "confidence": 0.1124,
+    "speaker": null
+  },
+  {
+    "start": 930.736,
+    "end": 931.486,
+    "word": "and",
+    "type": "pronunciation",
+    "confidence": 0.9986,
+    "speaker": null
+  },
+  {
+    "start": 933.316,
+    "end": 933.346,
+    "word": "that's",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 933.346,
+    "end": 933.356,
+    "word": "where",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 933.356,
+    "end": 933.366,
+    "word": "you",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 933.366,
+    "end": 933.376,
+    "word": "control",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 945.656,
+    "end": 945.996,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.997,
+    "speaker": null
+  },
+  {
+    "start": 946.366,
+    "end": 946.456,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.996,
+    "speaker": null
+  },
+  {
+    "start": 946.456,
+    "end": 946.696,
+    "word": "flip",
+    "type": "pronunciation",
+    "confidence": 0.9973,
+    "speaker": null
+  },
+  {
+    "start": 948.576,
+    "end": 948.736,
+    "word": "think",
+    "type": "pronunciation",
+    "confidence": 0.9999,
+    "speaker": null
+  },
+  {
+    "start": 948.736,
+    "end": 948.936,
+    "word": "that's",
+    "type": "pronunciation",
+    "confidence": 0.9994,
+    "speaker": null
+  },
+  {
+    "start": 948.936,
+    "end": 949.086,
+    "word": "a",
+    "type": "pronunciation",
+    "confidence": 0.9988,
+    "speaker": null
+  },
+  {
+    "start": 949.086,
+    "end": 949.456,
+    "word": "cost",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 949.456,
+    "end": 949.736,
+    "word": "thing",
+    "type": "pronunciation",
+    "confidence": 0.9998,
+    "speaker": null
+  },
+  {
+    "start": 949.896,
+    "end": 950.016,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9976,
+    "speaker": null
+  },
+  {
+    "start": 950.016,
+    "end": 950.696,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.9922,
+    "speaker": null
+  },
+  {
+    "start": 951.476,
+    "end": 951.496,
+    "word": "know",
+    "type": "pronunciation",
+    "confidence": 0.9717,
+    "speaker": null
+  },
+  {
+    "start": 951.496,
+    "end": 951.616,
+    "word": "how",
+    "type": "pronunciation",
+    "confidence": 0.9966,
+    "speaker": null
+  },
+  {
+    "start": 951.616,
+    "end": 951.816,
+    "word": "much",
+    "type": "pronunciation",
+    "confidence": 0.9967,
+    "speaker": null
+  },
+  {
+    "start": 951.816,
+    "end": 951.936,
+    "word": "we're",
+    "type": "pronunciation",
+    "confidence": 0.9879,
+    "speaker": null
+  },
+  {
+    "start": 951.936,
+    "end": 952.166,
+    "word": "gonna",
+    "type": "pronunciation",
+    "confidence": 0.9961,
+    "speaker": null
+  },
+  {
+    "start": 952.166,
+    "end": 952.416,
+    "word": "know",
+    "type": "pronunciation",
+    "confidence": 0.9842,
+    "speaker": null
+  },
+  {
+    "start": 952.416,
+    "end": 952.696,
+    "word": "about",
+    "type": "pronunciation",
+    "confidence": 0.9032,
+    "speaker": null
+  },
+  {
+    "start": 952.696,
+    "end": 952.896,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.6188,
+    "speaker": null
+  },
+  {
+    "start": 957.396,
+    "end": 957.406,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9957,
+    "speaker": null
+  },
+  {
+    "start": 957.406,
+    "end": 957.416,
+    "word": "might",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 957.416,
+    "end": 957.426,
+    "word": "look",
+    "type": "pronunciation",
+    "confidence": 0.9989,
+    "speaker": null
+  },
+  {
+    "start": 957.426,
+    "end": 957.436,
+    "word": "small",
+    "type": "pronunciation",
+    "confidence": 0.9993,
+    "speaker": null
+  },
+  {
+    "start": 957.436,
+    "end": 957.656,
+    "word": "but",
+    "type": "pronunciation",
+    "confidence": 0.996,
+    "speaker": null
+  },
+  {
+    "start": 957.656,
+    "end": 957.816,
+    "word": "it",
+    "type": "pronunciation",
+    "confidence": 0.9974,
+    "speaker": null
+  },
+  {
+    "start": 957.816,
+    "end": 957.966,
+    "word": "might",
+    "type": "pronunciation",
+    "confidence": 0.9984,
+    "speaker": null
+  },
+  {
+    "start": 957.966,
+    "end": 958.096,
+    "word": "have",
+    "type": "pronunciation",
+    "confidence": 0.9969,
+    "speaker": null
+  },
+  {
+    "start": 958.096,
+    "end": 958.496,
+    "word": "its",
+    "type": "pronunciation",
+    "confidence": 0.9422,
+    "speaker": null
+  },
+  {
+    "start": 959.656,
+    "end": 959.816,
+    "word": "and",
+    "type": "pronunciation",
+    "confidence": 0.8192,
+    "speaker": null
+  },
+  {
+    "start": 959.816,
+    "end": 960.016,
+    "word": "there's",
+    "type": "pronunciation",
+    "confidence": 0.9298,
+    "speaker": null
+  },
+  {
+    "start": 960.016,
+    "end": 960.136,
+    "word": "no",
+    "type": "pronunciation",
+    "confidence": 0.9894,
+    "speaker": null
+  },
+  {
+    "start": 960.136,
+    "end": 960.416,
+    "word": "reason",
+    "type": "pronunciation",
+    "confidence": 0.9961,
+    "speaker": null
+  },
+  {
+    "start": 966.416,
+    "end": 966.616,
+    "word": "something",
+    "type": "pronunciation",
+    "confidence": 0.9996,
+    "speaker": null
+  },
+  {
+    "start": 969.236,
+    "end": 969.416,
+    "word": "Sorry",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 970.576,
+    "end": 970.846,
+    "word": "guys",
+    "type": "pronunciation",
+    "confidence": 0.9991,
+    "speaker": null
+  },
+  {
+    "start": 984.816,
+    "end": 985.336,
+    "word": "again",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 985.576,
+    "end": 985.946,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.997,
+    "speaker": null
+  },
+  {
+    "start": 985.976,
+    "end": 986.096,
+    "word": "And",
+    "type": "pronunciation",
+    "confidence": 0.982,
+    "speaker": null
+  },
+  {
+    "start": 986.096,
+    "end": 986.216,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9993,
+    "speaker": null
+  },
+  {
+    "start": 986.216,
+    "end": 986.376,
+    "word": "get",
+    "type": "pronunciation",
+    "confidence": 0.9992,
+    "speaker": null
+  },
+  {
+    "start": 986.376,
+    "end": 986.496,
+    "word": "to",
+    "type": "pronunciation",
+    "confidence": 0.9993,
+    "speaker": null
+  },
+  {
+    "start": 986.496,
+    "end": 986.656,
+    "word": "do",
+    "type": "pronunciation",
+    "confidence": 0.9995,
+    "speaker": null
+  },
+  {
+    "start": 986.656,
+    "end": 986.996,
+    "word": "another",
+    "type": "pronunciation",
+    "confidence": 0.9993,
+    "speaker": null
+  },
+  {
+    "start": 987.816,
+    "end": 988.336,
+    "word": "Fantastic",
+    "type": "pronunciation",
+    "confidence": 0.9036,
+    "speaker": null
+  },
+  {
+    "start": 988.336,
+    "end": 988.806,
+    "word": "PowerPoint",
+    "type": "pronunciation",
+    "confidence": 0.2655,
+    "speaker": null
+  },
+  {
+    "start": 988.806,
+    "end": 989.496,
+    "word": "presentation",
+    "type": "pronunciation",
+    "confidence": 0.9291,
+    "speaker": null
+  },
+  {
+    "start": 991.056,
+    "end": 991.296,
+    "word": "about",
+    "type": "pronunciation",
+    "confidence": 0.9993,
+    "speaker": null
+  },
+  {
+    "start": 991.296,
+    "end": 991.606,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.9991,
+    "speaker": null
+  },
+  {
+    "start": 1005.456,
+    "end": 1005.616,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9667,
+    "speaker": null
+  },
+  {
+    "start": 1005.616,
+    "end": 1005.816,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 1005.816,
+    "end": 1006.186,
+    "word": "think",
+    "type": "pronunciation",
+    "confidence": 0.9969,
+    "speaker": null
+  },
+  {
+    "start": 1006.416,
+    "end": 1006.496,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9103,
+    "speaker": null
+  },
+  {
+    "start": 1006.956,
+    "end": 1007.376,
+    "word": "the",
+    "type": "pronunciation",
+    "confidence": 0.9944,
+    "speaker": null
+  },
+  {
+    "start": 1008.936,
+    "end": 1009.216,
+    "word": "hard",
+    "type": "pronunciation",
+    "confidence": 0.5103,
+    "speaker": null
+  },
+  {
+    "start": 1009.656,
+    "end": 1009.786,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.9968,
+    "speaker": null
+  },
+  {
+    "start": 1009.786,
+    "end": 1009.896,
+    "word": "mean",
+    "type": "pronunciation",
+    "confidence": 0.9974,
+    "speaker": null
+  },
+  {
+    "start": 1009.966,
+    "end": 1010.056,
+    "word": "you",
+    "type": "pronunciation",
+    "confidence": 0.9975,
+    "speaker": null
+  },
+  {
+    "start": 1010.056,
+    "end": 1010.356,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.9921,
+    "speaker": null
+  },
+  {
+    "start": 1010.466,
+    "end": 1010.916,
+    "word": "you",
+    "type": "pronunciation",
+    "confidence": 0.9503,
+    "speaker": null
+  },
+  {
+    "start": 1011.176,
+    "end": 1011.296,
+    "word": "you",
+    "type": "pronunciation",
+    "confidence": 0.9971,
+    "speaker": null
+  },
+  {
+    "start": 1013.616,
+    "end": 1013.906,
+    "word": "Quite",
+    "type": "pronunciation",
+    "confidence": 0.4096,
+    "speaker": null
+  },
+  {
+    "start": 1013.906,
+    "end": 1014.296,
+    "word": "good",
+    "type": "pronunciation",
+    "confidence": 0.873,
+    "speaker": null
+  },
+  {
+    "start": 1014.426,
+    "end": 1014.666,
+    "word": "but",
+    "type": "pronunciation",
+    "confidence": 0.8352,
+    "speaker": null
+  },
+  {
+    "start": 1018.586,
+    "end": 1018.706,
+    "word": "We",
+    "type": "pronunciation",
+    "confidence": 0.8624,
+    "speaker": null
+  },
+  {
+    "start": 1018.706,
+    "end": 1018.866,
+    "word": "don't",
+    "type": "pronunciation",
+    "confidence": 0.1052,
+    "speaker": null
+  },
+  {
+    "start": 1020.016,
+    "end": 1020.186,
+    "word": "using",
+    "type": "pronunciation",
+    "confidence": 0.9997,
+    "speaker": null
+  },
+  {
+    "start": 1022.166,
+    "end": 1022.176,
+    "word": "yeah",
+    "type": "pronunciation",
+    "confidence": 0.533,
+    "speaker": null
+  },
+  {
+    "start": 1022.986,
+    "end": 1023.266,
+    "word": "yeah",
+    "type": "pronunciation",
+    "confidence": 0.9681,
+    "speaker": null
+  },
+  {
+    "start": 1023.656,
+    "end": 1023.666,
+    "word": "Yeah",
+    "type": "pronunciation",
+    "confidence": 0.7661,
+    "speaker": null
+  },
+  {
+    "start": 1037.656,
+    "end": 1037.966,
+    "word": "I",
+    "type": "pronunciation",
+    "confidence": 0.3176,
+    "speaker": null
+  },
+  {
+    "start": 1043.216,
+    "end": 1043.416,
+    "word": "so",
+    "type": "pronunciation",
+    "confidence": 0.9895,
+    "speaker": null
+  }
+]

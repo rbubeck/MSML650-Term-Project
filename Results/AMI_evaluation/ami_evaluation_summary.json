@@ -1,0 +1,27 @@
+{
+  "evaluation_method": "greatest_positive_time_interval_overlap",
+  "transcription_metadata": {
+    "provider": "Amazon Transcribe Streaming",
+    "audio_file": "Datasets/AMI/Audio/ES2004a.Mix-Headset.wav",
+    "region": "us-east-1",
+    "language": "en-US",
+    "sample_rate_hz": 16000,
+    "audio_duration_seconds": 1049.3546875,
+    "elapsed_seconds": 1049.892,
+    "sdk_versions": null,
+    "request_configuration": null
+  },
+  "normalization": "shared normalize_text: NFKC, lowercase, punctuation to spaces, collapse whitespace",
+  "segments": 176,
+  "reference_words": 1953,
+  "asr_pronunciation_words": 2208,
+  "assigned_asr_words": 1829,
+  "unassigned_asr_words": 379,
+  "multiple_overlap_words": 1,
+  "empty_segments": 13,
+  "substitutions": 91,
+  "deletions": 92,
+  "insertions": 84,
+  "total_errors": 267,
+  "wer": 0.136713
+}

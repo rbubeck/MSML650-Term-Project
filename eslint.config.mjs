@@ -6,6 +6,7 @@ export default defineConfig([
   {
     ignores: [
       '**/node_modules/**',
+      '**/.venv/**',
       '**/dist/**',
       '**/build/**',
       '**/coverage/**',

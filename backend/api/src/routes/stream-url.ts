@@ -40,16 +40,16 @@ export type StreamUrlHandler = (event: ApiGatewayEvent) => Promise<ApiGatewayRes
 const allowAll: RateLimiter = { check: () => Promise.resolve('ALLOW') };
 const silentLogger: Logger = { log: () => undefined };
 
-type ParsedBody = { readonly ok: true } | { readonly ok: false };
+type ParsedBody = { readonly ok: true; readonly channels: 1 | 2 } | { readonly ok: false };
 
 /** The body is optional. If present it must be JSON that matches the (empty) request schema. */
 function parseBody(event: ApiGatewayEvent): ParsedBody {
   const raw = event.body;
-  if (raw === undefined || raw === null) return { ok: true };
+  if (raw === undefined || raw === null) return { ok: true, channels: 1 };
 
   const text = event.isBase64Encoded ? Buffer.from(raw, 'base64').toString('utf8') : raw;
   if (text.length > MAX_BODY_CHARACTERS) return { ok: false };
-  if (text.trim() === '') return { ok: true };
+  if (text.trim() === '') return { ok: true, channels: 1 };
 
   let parsed: unknown;
   try {
@@ -57,7 +57,8 @@ function parseBody(event: ApiGatewayEvent): ParsedBody {
   } catch {
     return { ok: false };
   }
-  return requestStreamUrlRequestSchema.safeParse(parsed).success ? { ok: true } : { ok: false };
+  const check = requestStreamUrlRequestSchema.safeParse(parsed);
+  return check.success ? { ok: true, channels: check.data.channels ?? 1 } : { ok: false };
 }
 
 /** Formats an instant as ISO 8601 UTC with whole seconds, e.g. `2026-11-06T16:01:00Z`. */
@@ -93,7 +94,8 @@ export function createStreamUrlHandler(deps: StreamUrlHandlerDependencies): Stre
 
       const sessionId = sessionIdSchema.safeParse(event.pathParameters?.['sessionId']);
       if (!sessionId.success) return reject('INVALID_INPUT');
-      if (!parseBody(event).ok) return reject('INVALID_INPUT');
+      const body = parseBody(event);
+      if (!body.ok) return reject('INVALID_INPUT');
 
       const admission = await rateLimiter.check(identity.ownerId);
       if (admission !== 'ALLOW') return reject(admission);
@@ -117,6 +119,7 @@ export function createStreamUrlHandler(deps: StreamUrlHandlerDependencies): Stre
           languageCode: allocation.languageCode,
           expiresInSeconds: config.expirySeconds,
           signingDate,
+          ...(body.channels === 2 ? { channels: 2 as const } : {}),
         });
       } catch {
         // The signer's error is deliberately dropped: it could contain the URL,
@@ -132,7 +135,7 @@ export function createStreamUrlHandler(deps: StreamUrlHandlerDependencies): Stre
         languageCode: allocation.languageCode,
         mediaEncoding: 'pcm',
         sampleRateHz: AUDIO_SAMPLE_RATE_HZ,
-        channels: AUDIO_CHANNELS,
+        channels: body.channels === 2 ? 2 : AUDIO_CHANNELS,
       });
       if (!response.success) {
         // Never log or return the validation issues: they can echo the URL.

@@ -9,6 +9,7 @@ export interface ProviderTranscriptResult {
   readonly isPartial: boolean;
   readonly startMs: number;
   readonly endMs: number;
+  readonly channelId?: 'ch_0' | 'ch_1';
 }
 
 export interface ProviderTranscriptEvent {
@@ -56,6 +57,10 @@ function parseResult(value: unknown): ProviderTranscriptResult | undefined {
   const startMs = parseTimeMs(value['StartTime']);
   const endMs = parseTimeMs(value['EndTime']);
   const alternatives = value['Alternatives'];
+  const channelId = value['ChannelId'];
+  if (channelId !== undefined && channelId !== 'ch_0' && channelId !== 'ch_1') {
+    throw new ProviderMessageError('INVALID_TRANSCRIPT_EVENT');
+  }
   if (
     typeof resultId !== 'string' ||
     resultId.length === 0 ||
@@ -74,7 +79,14 @@ function parseResult(value: unknown): ProviderTranscriptResult | undefined {
   }
   const text = firstAlternative['Transcript'];
   if (text.length === 0) return undefined;
-  return { resultId, text, isPartial, startMs, endMs };
+  return {
+    resultId,
+    text,
+    isPartial,
+    startMs,
+    endMs,
+    ...(channelId === 'ch_0' || channelId === 'ch_1' ? { channelId } : {}),
+  };
 }
 
 function parseTranscriptEvent(payload: Uint8Array): ProviderTranscriptEvent {

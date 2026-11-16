@@ -1,6 +1,6 @@
 import type { CaptionPhase, CaptionView } from './viewModels';
 
-/** Presentation-only grouping; transcript result IDs and save states remain untouched. */
+/** Presentation-only grouping; provider IDs, text, and persistence state remain untouched. */
 export interface TranscriptParagraph {
   key: string;
   speaker: string;
@@ -10,8 +10,11 @@ export interface TranscriptParagraph {
   finalPhase: Exclude<CaptionPhase, 'partial'> | undefined;
 }
 
-const NEW_PARAGRAPH_GAP_MS = 18_000;
-const MAX_PARAGRAPH_CHARACTERS = 900;
+// Short, readable turns rather than a single growing block of text.
+const NEW_PARAGRAPH_GAP_MS = 8_000;
+const MAX_PARAGRAPH_CHARACTERS = 240;
+const MAX_PARAGRAPH_FINAL_RESULTS = 3;
+const MAX_PARAGRAPH_DURATION_MS = 15_000;
 
 export function joinTranscriptText(texts: string[]): string {
   return texts
@@ -26,13 +29,12 @@ function finalPhase(finals: CaptionView[]): TranscriptParagraph['finalPhase'] {
   if (finals.some((segment) => segment.phase === 'save-failed')) return 'save-failed';
   if (finals.some((segment) => segment.phase === 'saving')) return 'saving';
   if (finals.every((segment) => segment.phase === 'save-acknowledged')) return 'save-acknowledged';
-  // Even one unacknowledged final prevents a misleading "Saved" label.
   return 'final-observed';
 }
 
 export function paragraphizeCaptions(captions: readonly CaptionView[]): TranscriptParagraph[] {
-  // Keep only the newest state per provider result ID. An older partial must not
-  // replace a final result if events are received out of order.
+  // A partial result is a revision, not a new utterance. Never replace a final
+  // with a stale late-arriving partial.
   const byId = new Map<string, { caption: CaptionView; index: number }>();
   captions.forEach((caption, index) => {
     const prior = byId.get(caption.id)?.caption;
@@ -45,17 +47,20 @@ export function paragraphizeCaptions(captions: readonly CaptionView[]): Transcri
   );
   const result: TranscriptParagraph[] = [];
   let current: TranscriptParagraph | undefined;
-  let lastEndMs = 0;
+  let lastStartMs = 0;
   let currentLength = 0;
 
   for (const { caption } of ordered) {
     if (!caption.text.trim()) continue;
-    const gap = caption.timestampMs - lastEndMs;
+    const gap = caption.timestampMs - lastStartMs;
     if (
       !current ||
       caption.speaker !== current.speaker ||
       gap >= NEW_PARAGRAPH_GAP_MS ||
-      (currentLength >= MAX_PARAGRAPH_CHARACTERS && current.finals.length > 0)
+      caption.timestampMs - current.startMs >= MAX_PARAGRAPH_DURATION_MS ||
+      (current.finals.length > 0 &&
+        (currentLength >= MAX_PARAGRAPH_CHARACTERS ||
+          current.finals.length >= MAX_PARAGRAPH_FINAL_RESULTS))
     ) {
       current = {
         key: caption.id,
@@ -69,15 +74,13 @@ export function paragraphizeCaptions(captions: readonly CaptionView[]): Transcri
       currentLength = 0;
     }
     if (caption.phase === 'partial') {
-      // A single result ID gets revised during streaming. Keep interim words
-      // distinct from finals, and never treat them as durable.
       current.partial = caption;
     } else {
       current.finals.push(caption);
       current.finalPhase = finalPhase(current.finals);
       currentLength += caption.text.trim().length + 1;
     }
-    lastEndMs = Math.max(lastEndMs, caption.timestampMs);
+    lastStartMs = Math.max(lastStartMs, caption.timestampMs);
   }
   return result;
 }

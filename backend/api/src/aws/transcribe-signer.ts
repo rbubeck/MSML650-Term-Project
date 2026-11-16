@@ -100,6 +100,12 @@ export function createTranscribeUrlSigner(credentials: CredentialsProvider): Tra
           'language-code': input.languageCode,
           'media-encoding': 'pcm',
           'sample-rate': String(AUDIO_SAMPLE_RATE_HZ),
+          ...(input.channels === 2
+            ? {
+                'enable-channel-identification': 'true',
+                'number-of-channels': '2',
+              }
+            : {}),
         },
       });
 

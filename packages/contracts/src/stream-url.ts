@@ -39,7 +39,10 @@ function isTranscribeWebSocketUrl(value: string): boolean {
  * POST /v1/sessions/{sessionId}/stream-url body. Language and audio settings are
  * fixed when the session is created, so the client sends nothing here.
  */
-export const requestStreamUrlRequestSchema = z.strictObject({});
+export const requestStreamUrlRequestSchema = z.strictObject({
+  /** Request independent left/right transcription; omit for original mono API. */
+  channels: z.literal(2).optional(),
+});
 export type RequestStreamUrlRequest = z.infer<typeof requestStreamUrlRequestSchema>;
 
 /**
@@ -68,6 +71,6 @@ export const streamUrlResponseSchema = z.strictObject({
   languageCode: languageCodeSchema,
   mediaEncoding: z.literal('pcm'),
   sampleRateHz: z.literal(AUDIO_SAMPLE_RATE_HZ),
-  channels: z.literal(AUDIO_CHANNELS),
+  channels: z.union([z.literal(AUDIO_CHANNELS), z.literal(2)]),
 });
 export type StreamUrlResponse = z.infer<typeof streamUrlResponseSchema>;

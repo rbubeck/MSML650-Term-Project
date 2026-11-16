@@ -1,33 +1,106 @@
+.transcript-feed {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.transcript-feed-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.transcript-feed-heading {
+  font-size: 12px;
+  font-weight: 650;
+  color: #e9f1fe;
+}
+.transcript-feed-mode {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  color: #b4a9fa;
+}
+.transcript-demo-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(132, 118, 255, 0.28);
+  border-radius: 9px;
+  background: rgba(132, 118, 255, 0.08);
+  color: #b9c8e2;
+  font-size: 11px;
+  line-height: 1.55;
+}
 .transcript-paragraph-list {
   display: grid;
-  gap: 20px;
+  gap: 0;
 }
 .transcript-paragraph {
-  padding-bottom: 17px;
-  border-bottom: 1px solid #29374d;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px 2px 18px;
   min-width: 0;
+  border-bottom: 1px solid #283751;
+}
+.transcript-paragraph:first-child {
+  padding-top: 4px;
 }
 .transcript-paragraph:last-child {
   border-bottom: 0;
+}
+.transcript-source-avatar {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #eef0ff;
+  background: rgba(138, 127, 255, 0.21);
+  border: 1px solid rgba(138, 127, 255, 0.31);
+  font-size: 11px;
+  font-weight: 800;
+}
+.transcript-source-meeting .transcript-source-avatar {
+  color: #9ee8e1;
+  background: rgba(53, 176, 163, 0.13);
+  border-color: rgba(53, 176, 163, 0.28);
+}
+.transcript-source-mixed .transcript-source-avatar {
+  font-size: 9px;
+}
+.transcript-source-other .transcript-source-avatar {
+  color: #e0baff;
+  background: rgba(158, 94, 230, 0.12);
+}
+.transcript-paragraph-content {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .transcript-paragraph-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  margin-bottom: 9px;
+  gap: 6px 10px;
+  margin: 1px 0 7px;
   font-size: 11px;
 }
 .transcript-paragraph-meta strong {
-  color: #e5eaf7;
-  font-weight: 650;
+  color: #f4f6ff;
+  font-weight: 700;
 }
 .transcript-paragraph-meta time {
-  color: #91a1bb;
+  color: #91a4c1;
+  font-variant-numeric: tabular-nums;
 }
 .transcript-paragraph-state {
-  color: #d0a881;
+  margin-left: auto;
   font-size: 10px;
+  color: #c4ad83;
+}
+.transcript-paragraph-state.state-partial {
+  color: #b7a6ff;
 }
 .transcript-paragraph-state.state-save-acknowledged {
   color: #80d3ad;
@@ -35,18 +108,78 @@
 .transcript-paragraph-state.state-save-failed {
   color: #f3a8a8;
 }
-.transcript-paragraph-state.state-partial {
-  color: #c4b5fd;
-}
-.transcript-paragraph p {
-  color: #d8e2f0;
-  font-size: 14px;
-  line-height: 1.8;
+.transcript-final-text,
+.transcript-pending {
   margin: 0;
+  color: #e0e9f7;
+  font-size: 13px;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .transcript-pending {
-  color: #b5a7fa;
+  color: #b8abec;
   font-style: italic;
-  opacity: 0.9;
+  opacity: 0.95;
+}
+.transcript-final-text + .transcript-pending {
+  margin-top: 5px;
+}
+.transcript-typing-indicator {
+  display: inline-block;
+  vertical-align: middle;
+  height: 11px;
+  width: 5px;
+  margin-left: 6px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.65;
+  animation: transcript-caret 1.15s ease-in-out infinite;
+}
+@keyframes transcript-caret {
+  50% {
+    opacity: 0.12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transcript-typing-indicator {
+    animation: none;
+  }
+}
+@media (max-width: 470px) {
+  .transcript-paragraph {
+    gap: 9px;
+  }
+  .transcript-paragraph-state {
+    margin-left: 0;
+  }
+}
+
+/* Clear, independently-filterable microphone and meeting caption lanes. */
+.transcript-source-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.transcript-source-filters button {
+  cursor: pointer;
+  border: 1px solid #405075;
+  background: transparent;
+  color: #b6c8e2;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 650;
+}
+.transcript-source-filters button[aria-pressed='true'] {
+  border-color: #9187ff;
+  background: rgba(126, 110, 254, 0.2);
+  color: #f1f2ff;
+}
+.transcript-paragraph.transcript-source-mic {
+  border-left: 3px solid #998aff;
+  padding-left: 9px;
+}
+.transcript-paragraph.transcript-source-meeting {
+  border-left: 3px solid #53c4b5;
+  padding-left: 9px;
 }

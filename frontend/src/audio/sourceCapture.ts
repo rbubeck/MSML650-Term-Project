@@ -105,7 +105,9 @@ export class SourceCapture {
             'No system audio was shared. Select a tab, window, or screen that supports audio and enable Share audio.',
           );
         }
-        display.getVideoTracks().forEach((track) => track.addEventListener('ended', this.handleEnded));
+        display
+          .getVideoTracks()
+          .forEach((track) => track.addEventListener('ended', this.handleEnded));
         sharedAudio.addEventListener('ended', this.handleEnded);
       }
       if (this.selection.microphone) {
@@ -150,11 +152,17 @@ export class SourceCapture {
         const data: unknown = event.data;
         if (typeof data !== 'object' || data === null || !('type' in data)) return;
         if (
-          data.type === 'chunk' && 'pcm' in data && data.pcm instanceof ArrayBuffer &&
-          'sequence' in data && typeof data.sequence === 'number' &&
-          'startSample' in data && typeof data.startSample === 'number' &&
-          'validSamples' in data && typeof data.validSamples === 'number' &&
-          'final' in data && typeof data.final === 'boolean'
+          data.type === 'chunk' &&
+          'pcm' in data &&
+          data.pcm instanceof ArrayBuffer &&
+          'sequence' in data &&
+          typeof data.sequence === 'number' &&
+          'startSample' in data &&
+          typeof data.startSample === 'number' &&
+          'validSamples' in data &&
+          typeof data.validSamples === 'number' &&
+          'final' in data &&
+          typeof data.final === 'boolean'
         ) {
           this.chunkCount += 1;
           // Calculate levels before handing off a buffer that may be transferred.
@@ -180,7 +188,8 @@ export class SourceCapture {
       const mixer = context.createGain();
       this.nodes.push(mixer);
       const gains = sourceGains(this.selection);
-      if (this.display) this.systemAnalyser = this.connectSource(context, this.display, mixer, gains.system);
+      if (this.display)
+        this.systemAnalyser = this.connectSource(context, this.display, mixer, gains.system);
       if (this.mic) this.micAnalyser = this.connectSource(context, this.mic, mixer, gains.mic);
       const sink = context.createGain();
       sink.gain.value = 0; // Never play the shared audio a second time.
@@ -195,7 +204,12 @@ export class SourceCapture {
     }
   }
 
-  private connectSource(context: AudioContext, media: MediaStream, mixer: GainNode, volume: number): AnalyserNode {
+  private connectSource(
+    context: AudioContext,
+    media: MediaStream,
+    mixer: GainNode,
+    volume: number,
+  ): AnalyserNode {
     const source = context.createMediaStreamSource(media);
     const analyser = context.createAnalyser();
     analyser.fftSize = 2048;
@@ -234,8 +248,10 @@ export class SourceCapture {
   }
 
   private async release(): Promise<void> {
-    for (const track of this.display?.getTracks() ?? []) track.removeEventListener('ended', this.handleEnded);
-    for (const track of this.mic?.getTracks() ?? []) track.removeEventListener('ended', this.handleEnded);
+    for (const track of this.display?.getTracks() ?? [])
+      track.removeEventListener('ended', this.handleEnded);
+    for (const track of this.mic?.getTracks() ?? [])
+      track.removeEventListener('ended', this.handleEnded);
     for (const node of this.nodes) node.disconnect();
     this.nodes.length = 0;
     this.processor?.disconnect();

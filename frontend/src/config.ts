@@ -24,4 +24,3 @@ export const hasCloudConfig = Boolean(
 export const hasAuthConfig = Boolean(
   config.cognitoUserPoolId && config.cognitoClientId && config.cognitoRegion,
 );
-

@@ -39,10 +39,17 @@ class CloudScribeStereoPcm extends AudioWorkletProcessor {
       view.setInt16(i * 4, this.sampleToInt16(this.outputLeft[i]), true);
       view.setInt16(i * 4 + 2, this.sampleToInt16(this.outputRight[i]), true);
     }
-    this.port.postMessage({
-      type: 'chunk', pcm, sequence: this.sequence++, startSample: this.totalOutputFrames,
-      validSamples: frames, final,
-    }, [pcm]);
+    this.port.postMessage(
+      {
+        type: 'chunk',
+        pcm,
+        sequence: this.sequence++,
+        startSample: this.totalOutputFrames,
+        validSamples: frames,
+        final,
+      },
+      [pcm],
+    );
     this.totalOutputFrames += frames;
     this.pendingFrames = 0;
   }
@@ -61,9 +68,14 @@ class CloudScribeStereoPcm extends AudioWorkletProcessor {
       const r = right?.[i] ?? 0;
       const currentIndex = this.inputIndex++;
       while (this.nextOutputIndex <= currentIndex + 1e-7) {
-        const fraction = currentIndex === 0 ? 1 : Math.max(0, Math.min(1, this.nextOutputIndex - (currentIndex - 1)));
-        this.outputLeft[this.pendingFrames] = this.previousLeft + (l - this.previousLeft) * fraction;
-        this.outputRight[this.pendingFrames] = this.previousRight + (r - this.previousRight) * fraction;
+        const fraction =
+          currentIndex === 0
+            ? 1
+            : Math.max(0, Math.min(1, this.nextOutputIndex - (currentIndex - 1)));
+        this.outputLeft[this.pendingFrames] =
+          this.previousLeft + (l - this.previousLeft) * fraction;
+        this.outputRight[this.pendingFrames] =
+          this.previousRight + (r - this.previousRight) * fraction;
         this.pendingFrames++;
         if (this.pendingFrames === this.chunkFrames) this.emitChunk(false);
         this.nextOutputIndex += step;

@@ -33,7 +33,12 @@ describe('independent audio source acquisition', () => {
 
   it('microphone only never opens screen picker', async () => {
     const api = setup();
-    const capture = new SourceCapture({ microphone: true, system: false }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: true, system: false },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await capture.acquire();
     expect(api.getUserMedia).toHaveBeenCalledTimes(1);
     expect(api.getDisplayMedia).not.toHaveBeenCalled();
@@ -44,7 +49,12 @@ describe('independent audio source acquisition', () => {
 
   it('system only never requests microphone', async () => {
     const api = setup();
-    const capture = new SourceCapture({ microphone: false, system: true }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: false, system: true },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await capture.acquire();
     expect(api.getDisplayMedia).toHaveBeenCalledTimes(1);
     expect(api.getUserMedia).not.toHaveBeenCalled();
@@ -55,7 +65,12 @@ describe('independent audio source acquisition', () => {
 
   it('both selections acquire both and share mixer headroom', async () => {
     const api = setup();
-    const capture = new SourceCapture({ microphone: true, system: true }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: true, system: true },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await capture.acquire();
     expect(api.getDisplayMedia).toHaveBeenCalledTimes(1);
     expect(api.getUserMedia).toHaveBeenCalledTimes(1);
@@ -67,7 +82,12 @@ describe('independent audio source acquisition', () => {
 
   it('rejects empty selection without permission prompts', async () => {
     const api = setup();
-    const capture = new SourceCapture({ microphone: false, system: false }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: false, system: false },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await expect(capture.acquire()).rejects.toThrow(/Select at least one/);
     expect(api.getDisplayMedia).not.toHaveBeenCalled();
     expect(api.getUserMedia).not.toHaveBeenCalled();
@@ -75,7 +95,12 @@ describe('independent audio source acquisition', () => {
 
   it('fails safely if display sharing contains no audio', async () => {
     const api = setup(fakeStream(0, 1));
-    const capture = new SourceCapture({ microphone: true, system: true }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: true, system: true },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await expect(capture.acquire()).rejects.toThrow(/No system audio was shared/);
     expect(api.getUserMedia).not.toHaveBeenCalled();
     expect(api.display.video[0]?.stop).toHaveBeenCalledOnce();
@@ -84,14 +109,24 @@ describe('independent audio source acquisition', () => {
   it('stops existing display tracks if microphone permission is denied', async () => {
     const api = setup();
     api.getUserMedia.mockRejectedValueOnce(new Error('NotAllowedError'));
-    const capture = new SourceCapture({ microphone: true, system: true }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: true, system: true },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await expect(capture.acquire()).rejects.toThrow(/NotAllowedError/);
     expect(api.display.video[0]?.stop).toHaveBeenCalledOnce();
   });
 
   it('stop is idempotent', async () => {
     const api = setup();
-    const capture = new SourceCapture({ microphone: true, system: false }, vi.fn(), vi.fn(), vi.fn());
+    const capture = new SourceCapture(
+      { microphone: true, system: false },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
     await capture.acquire();
     await capture.stop();
     await capture.stop();

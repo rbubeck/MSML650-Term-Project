@@ -827,3 +827,354 @@ Manual browser tests were not repeated during this formatting-focused retest. Ac
 The formatting corrections successfully resolved QA-001. The complete `npm run check` pipeline now passes at commit `9f2d868`, with all 204 automated tests passing across 27 test suites.
 
 The updated implementation is suitable for continued integration testing. Remaining findings and AWS-dependent acceptance tests will be addressed in subsequent testing phases.
+
+
+## 13. Expanded Stereo Automated Testing and Reliability Findings — November 17, 2026
+
+### 13.1 Testing Scope and Environment
+
+Additional automated testing was performed against the
+`feature/cloudscribe-stereo-v5-complete` implementation at commit
+`9f2d868` in an isolated detached Git worktree.
+
+The objective was to expand regression coverage for stereo URL
+signing, PCM encoding, transcript channel attribution, audio
+acquisition, and resource lifecycle management.
+
+All changes were limited to test files. No production code was
+modified, and no changes were pushed to the stereo feature branch.
+Testing used synthetic fixtures, mocked browser APIs, and simulated
+transport components without making live AWS requests.
+
+### 13.2 Automated Regression Results
+
+The original validated baseline contained 204 passing tests across
+27 test suites. The expanded suite contains 243 passing tests across
+29 test suites, representing 39 additional passing tests and a
+19.1% increase in test count.
+
+| Testing area | Additional passing tests |
+| --- | ---: |
+| Stereo URL signing | 3 |
+| Stereo PCM encoding | 10 |
+| Transcript channel attribution | 6 |
+| Audio acquisition and permissions | 12 |
+| Active processing and resource cleanup | 8 |
+| **Total** | **39** |
+
+The final `npm run check` execution completed successfully:
+
+| Validation stage | Result |
+| --- | --- |
+| Prettier formatting | PASS |
+| ESLint | PASS |
+| TypeScript type checking | PASS |
+| Automated test suites | 29/29 PASS |
+| Automated tests | 243/243 PASS |
+| Workspace production builds | PASS |
+
+The final Vitest execution completed in 2.69 seconds. This duration
+represents local automated test execution and is not a measurement
+of transcription latency or application performance.
+
+The frontend production bundle remains 516.48 kB before gzip
+compression and 152.93 kB after gzip compression. The existing
+Vite warning concerning chunks larger than 500 kB remains open.
+
+### 13.3 Stereo URL Signing
+
+Three additional tests were added to
+`backend/api/src/aws/transcribe-signer.test.ts`.
+
+Coverage includes:
+
+- Inclusion of the required stereo channel-identification parameters.
+- Omission of stereo-specific parameters for mono requests.
+- Independent verification of the stereo AWS Signature Version 4
+  signature using synthetic credentials.
+
+All 16 tests in the signer test file passed.
+
+QA-004 is addressed in the local review worktree. Integration of
+the additional tests into the shared repository remains pending.
+
+### 13.4 Stereo PCM Encoding
+
+Ten tests were added in
+`frontend/src/audio/stereo-pcm-worklet.test.ts`.
+
+The tests execute the stereo AudioWorklet implementation using
+a simulated processing environment.
+
+Coverage includes:
+
+- Resampling from 44.1 kHz and 48 kHz to 16 kHz.
+- Correct interleaving of microphone and system audio samples.
+- Signed 16-bit little-endian PCM encoding.
+- Independent sample clamping for each channel.
+- Silence substitution when system audio is unavailable.
+- Correct sequence numbers and sample offsets.
+- Partial-chunk flushing without unnecessary padding.
+- Flush acknowledgment when no samples remain.
+- Prevention of additional audio output after flushing.
+- Silent monitoring output.
+
+All 10 tests passed.
+
+These tests verify deterministic worklet behavior but do not
+replace testing with actual browser audio devices.
+
+### 13.5 Transcript Channel Attribution
+
+Six additional tests were added to
+`frontend/src/services/separateStreamAdapter.stereo.test.ts`.
+
+Coverage includes:
+
+- Mapping channel `ch_0` to microphone audio.
+- Mapping channel `ch_1` to system audio.
+- Interleaved partial and final transcript events.
+- Overlapping final transcript timestamps.
+- Rejection of missing or unsupported channel identifiers.
+- Suppression of subsequent captions after a channel failure.
+
+All seven tests in the stereo adapter test file passed.
+
+The tests use simulated transport and capture components. Some
+failure-path tests explicitly invoke adapter cleanup before checking
+resource-release assertions. Consequently, those assertions do not
+independently establish automatic cleanup initiation.
+
+Actual simultaneous speech attribution through Amazon Transcribe
+remains unverified.
+
+### 13.6 Stereo Audio Acquisition and Resource Lifecycle
+
+Twenty tests were added in
+`frontend/src/audio/stereoSourceCapture.test.ts`.
+
+The acquisition tests verify:
+
+- Display permission is requested before microphone permission.
+- Unsupported browsers are rejected.
+- Display picker cancellation is handled.
+- Display sharing without audio is rejected.
+- Already-ended display audio is rejected.
+- Display resources are released after microphone permission denial.
+- Late-arriving streams are released after cancellation.
+- Termination listeners are registered and removed.
+- Sequential repeated stop requests do not duplicate cleanup.
+- Processing cannot start before acquisition.
+- Stopped capture instances cannot be reused.
+
+The active processing tests verify:
+
+- Cleanup after AudioWorklet initialization failure.
+- Microphone routing to stereo channel zero.
+- System audio routing to stereo channel one.
+- Independent audio-level reporting and PCM forwarding.
+- Final PCM flushing before resource release.
+- Cleanup after the 500 ms flush acknowledgment timeout.
+- Automatic cleanup following display or microphone termination.
+- Cleanup after AudioContext resume failure.
+
+All 20 regression tests passed.
+
+Two additional diagnostic tests exposed race conditions and were
+preserved separately from the passing regression suite.
+
+### 13.7 BUG-002: Concurrent Stop Requests Resolve Prematurely
+
+- Status: Open; reproduced in an automated diagnostic test.
+- Provisional severity: Medium.
+- Component: `StereoSourceCapture.stop()`.
+- Category: Resource lifecycle and asynchronous cleanup.
+
+**Reproduction procedure:**
+
+1. Acquire both audio sources and start stereo processing.
+2. Delay the AudioWorklet flush acknowledgment.
+3. Invoke `stop()` to initiate cleanup.
+4. Invoke `stop()` again before the first request completes.
+5. Observe whether the second request resolves before resource
+   cleanup finishes.
+
+**Expected behavior:**
+
+Concurrent stop callers should await completion of the same
+resource-cleanup operation.
+
+**Observed behavior:**
+
+The second stop request resolves while the first request is
+still waiting for the flush acknowledgment.
+
+The diagnostic test failed with:
+
+`AssertionError: expected true to be false`
+
+The `resolvedBeforeCleanup` variable was `true`.
+
+**Root cause:**
+
+The implementation sets the `closed` flag before asynchronous
+cleanup completes. Subsequent stop requests return immediately
+when they encounter the flag.
+
+**Recommended remediation:**
+
+Maintain a shared cleanup promise so that concurrent callers
+await the same cleanup operation while resources are released
+only once.
+
+**Potential impact and limitations:**
+
+A caller may consider capture stopped before audio resources
+have been released. The diagnostic test does not demonstrate
+a permanent resource leak or establish an observable failure
+in the integrated browser application.
+
+### 13.8 BUG-003: Stereo Startup Continues After Display Audio Ends
+
+- Status: Open; reproduced in an automated diagnostic test.
+- Provisional severity: Medium.
+- Component: `StereoSourceCapture.acquire()`.
+- Category: Audio acquisition and asynchronous state management.
+
+**Reproduction procedure:**
+
+1. Grant display sharing permission with audio enabled.
+2. Keep the microphone permission request pending.
+3. Simulate termination of the display audio track.
+4. Resolve the microphone permission request.
+5. Attempt to start stereo audio processing.
+
+**Expected behavior:**
+
+Startup should be canceled because a required audio source
+is no longer available. Acquired resources should be released.
+
+**Observed behavior:**
+
+Stereo audio processing starts successfully despite the ended
+display audio track.
+
+The diagnostic test failed with:
+
+`AssertionError: expected true to be false`
+
+The `startupSucceeded` variable was `true`.
+
+**Root cause:**
+
+Display termination listeners are registered after microphone
+acquisition completes. The display audio track is not
+revalidated following microphone acquisition.
+
+**Recommended remediation:**
+
+Register display termination listeners immediately after
+display acquisition, revalidate required audio tracks after
+asynchronous permission requests, and cancel startup when
+either required source has ended.
+
+**Potential impact and limitations:**
+
+The application may enter a stereo recording state without
+an active system audio source. This could result in missing
+meeting audio while microphone transcription continues.
+
+The behavior has been reproduced using mocked browser APIs.
+Actual browser behavior and downstream AWS impact remain
+unverified.
+
+### 13.9 Updated Defect Register
+
+| ID | Description | Severity | Status |
+| --- | --- | --- | --- |
+| BUG-001 | Stale audio meter after external termination | Low | Open |
+| BUG-002 | Concurrent stop resolves before cleanup | Medium | Open |
+| BUG-003 | Stereo startup continues after display audio ends | Medium | Open |
+
+BUG-002 and BUG-003 have provisional severity classifications
+pending application-level validation.
+
+### 13.10 Updated Dependency Findings
+
+A subsequent `npm ci` execution completed successfully and
+reported 14 dependency vulnerabilities: eight moderate and
+six high.
+
+The previous installation reported nine moderate vulnerabilities.
+
+The esbuild lifecycle-script approval warning also remains
+present. No automatic dependency fixes or lifecycle-script
+approvals were performed.
+
+QA-007 remains open pending investigation of the affected
+dependencies, advisory details, and actual application exposure.
+The increased advisory count does not independently establish
+that application dependencies changed.
+
+### 13.11 Test Preservation and Integration
+
+Four validated test patches and one alternative diagnostic
+patch were preserved locally:
+
+| Patch | Contents |
+| --- | --- |
+| `QA-004-stereo-signer-tests.patch` | 3 additional passing tests |
+| `stereo-pcm-worklet-tests.patch` | 10 additional passing tests |
+| `stereo-channel-attribution-tests.patch` | 6 additional passing tests |
+| `stereo-source-capture-tests.patch` | 20 additional passing tests |
+| `stereo-source-capture-with-diagnostics.patch` | 20 passing tests and 2 defect reproductions |
+
+The diagnostic patch is an alternative version of the
+validated stereo source capture patch and must not be applied
+on top of it.
+
+The four validated patches contain changes to four test files,
+with 1,211 added lines and no production code modifications.
+
+After the diagnostic tests were removed from the active test
+file, the complete regression pipeline was rerun successfully,
+restoring the 243-test passing baseline.
+
+The patches remain local artifacts pending integration of
+the stereo implementation into the shared main branch.
+They have not been committed or pushed.
+
+### 13.12 Remaining Validation and Next Steps
+
+The expanded automated tests improve confidence in the stereo
+implementation but do not constitute full application acceptance.
+
+Remaining work includes:
+
+1. Coordinate remediation and regression testing for BUG-001,
+   BUG-002, and BUG-003.
+2. Integrate the validated stereo tests after the stereo
+   implementation becomes available on the shared branch.
+3. Expand fake-backed integration testing across application
+   components and API boundaries.
+4. Prepare integrated performance measurement procedures.
+5. Validate real browser stereo capture and channel attribution.
+6. Execute authorized AWS end-to-end tests covering authentication,
+   transcription, persistence, history, reconnect behavior,
+   authorization, and deletion.
+7. Measure integrated transcription accuracy and latency using
+   controlled audio inputs.
+
+### 13.13 Conclusion
+
+The expanded stereo review produced 39 additional passing
+automated tests and two reproducible reliability findings.
+
+The complete local regression pipeline passes with 243 tests
+across 29 suites. Both newly identified defects remain open
+and have been preserved as separate diagnostic tests.
+
+The results demonstrate expanded deterministic test coverage
+without modifying production code or incurring AWS usage.
+Live AWS integration and application-level performance
+validation remain outstanding.

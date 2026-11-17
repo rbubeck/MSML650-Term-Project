@@ -1,0 +1,618 @@
+diff --git a/frontend/src/audio/stereoSourceCapture.test.ts b/frontend/src/audio/stereoSourceCapture.test.ts
+new file mode 100644
+index 0000000..1a6e7e6
+--- /dev/null
++++ b/frontend/src/audio/stereoSourceCapture.test.ts
+@@ -0,0 +1,612 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { StereoSourceCapture } from './stereoSourceCapture';
++
++function fakeTrack(readyState = 'live') {
++  return {
++    readyState,
++    stop: vi.fn(),
++    addEventListener: vi.fn(),
++    removeEventListener: vi.fn(),
++  };
++}
++
++function fakeStream(audioCount = 1, videoCount = 0) {
++  const audio = Array.from({ length: audioCount }, () => fakeTrack());
++  const video = Array.from({ length: videoCount }, () => fakeTrack());
++
++  return {
++    getAudioTracks: () => audio,
++    getVideoTracks: () => video,
++    getTracks: () => [...audio, ...video],
++    audio,
++    video,
++  };
++}
++
++function deferred<T>() {
++  let resolve!: (value: T) => void;
++
++  const promise = new Promise<T>((done) => {
++    resolve = done;
++  });
++
++  return { promise, resolve };
++}
++
++function setup(display = fakeStream(1, 1), mic = fakeStream()) {
++  const getDisplayMedia = vi.fn().mockResolvedValue(display);
++  const getUserMedia = vi.fn().mockResolvedValue(mic);
++
++  vi.stubGlobal('window', {
++    AudioWorkletNode: class {},
++  });
++
++  vi.stubGlobal('navigator', {
++    mediaDevices: {
++      getDisplayMedia,
++      getUserMedia,
++    },
++  });
++
++  const onChunk = vi.fn();
++  const onStatus = vi.fn();
++  const onEnded = vi.fn();
++
++  const capture = new StereoSourceCapture(onChunk, onStatus, onEnded);
++
++  return {
++    capture,
++    display,
++    mic,
++    getDisplayMedia,
++    getUserMedia,
++    onChunk,
++    onStatus,
++    onEnded,
++  };
++}
++
++describe('stereo audio capture acquisition and cleanup', () => {
++  afterEach(() => {
++    vi.unstubAllGlobals();
++  });
++
++  it('requests display permission before microphone permission', async () => {
++    const test = setup();
++    const pendingDisplay = deferred<typeof test.display>();
++
++    test.getDisplayMedia.mockReturnValueOnce(pendingDisplay.promise);
++
++    const acquisition = test.capture.acquire();
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    pendingDisplay.resolve(test.display);
++
++    await acquisition;
++
++    expect(test.getUserMedia).toHaveBeenCalledOnce();
++
++    expect(test.getDisplayMedia).toHaveBeenCalledWith({
++      video: true,
++      audio: true,
++      systemAudio: 'include',
++    });
++
++    expect(test.getUserMedia).toHaveBeenCalledWith({
++      audio: {
++        channelCount: 1,
++        echoCancellation: true,
++        noiseSuppression: true,
++      },
++    });
++
++    await test.capture.stop();
++  });
++
++  it('rejects unsupported browsers without requesting permissions', async () => {
++    const test = setup();
++
++    vi.stubGlobal('window', {});
++
++    await expect(test.capture.acquire()).rejects.toThrow(
++      /This browser cannot capture both audio sources/,
++    );
++
++    expect(test.getDisplayMedia).not.toHaveBeenCalled();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++  });
++
++  it('honors a canceled display picker without requesting microphone access', async () => {
++    const test = setup();
++
++    test.getDisplayMedia.mockRejectedValueOnce(new Error('User canceled share dialog'));
++
++    await expect(test.capture.acquire()).rejects.toThrow('User canceled share dialog');
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++    expect(test.onChunk).not.toHaveBeenCalled();
++    expect(test.onEnded).not.toHaveBeenCalled();
++  });
++
++  it('rejects display sharing without audio and releases video tracks', async () => {
++    const test = setup(fakeStream(0, 1));
++
++    await expect(test.capture.acquire()).rejects.toThrow(/No tab audio was shared/);
++
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('rejects display sharing when its audio track has already ended', async () => {
++    const display = fakeStream(1, 1);
++    display.audio[0]!.readyState = 'ended';
++
++    const test = setup(display);
++
++    await expect(test.capture.acquire()).rejects.toThrow(/No tab audio was shared/);
++
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    for (const track of display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases all display tracks when microphone permission is denied', async () => {
++    const test = setup();
++
++    test.getUserMedia.mockRejectedValueOnce(new Error('Microphone permission denied'));
++
++    await expect(test.capture.acquire()).rejects.toThrow('Microphone permission denied');
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).toHaveBeenCalledOnce();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    expect(test.onChunk).not.toHaveBeenCalled();
++    expect(test.onEnded).not.toHaveBeenCalled();
++  });
++
++  it('releases late display tracks when stopped during the display picker', async () => {
++    const test = setup();
++    const pendingDisplay = deferred<typeof test.display>();
++
++    test.getDisplayMedia.mockReturnValueOnce(pendingDisplay.promise);
++
++    const acquisition = test.capture.acquire();
++
++    await test.capture.stop();
++
++    pendingDisplay.resolve(test.display);
++
++    await acquisition;
++
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases late microphone tracks when stopped during microphone permission', async () => {
++    const test = setup();
++    const pendingMic = deferred<typeof test.mic>();
++
++    test.getUserMedia.mockReturnValueOnce(pendingMic.promise);
++
++    const acquisition = test.capture.acquire();
++
++    await vi.waitFor(() => {
++      expect(test.getUserMedia).toHaveBeenCalledOnce();
++    });
++
++    await test.capture.stop();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    pendingMic.resolve(test.mic);
++
++    await acquisition;
++
++    for (const track of test.mic.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    expect(test.onChunk).not.toHaveBeenCalled();
++  });
++
++  it('registers and removes termination listeners for both sources', async () => {
++    const test = setup();
++
++    await test.capture.acquire();
++
++    const tracks = [...test.display.getTracks(), ...test.mic.getTracks()];
++
++    for (const track of tracks) {
++      expect(track.addEventListener).toHaveBeenCalledWith('ended', expect.any(Function));
++    }
++
++    await test.capture.stop();
++
++    for (const track of tracks) {
++      const handler = track.addEventListener.mock.calls[0]?.[1];
++
++      expect(track.removeEventListener).toHaveBeenCalledWith('ended', handler);
++
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases both sources only once across repeated stop requests', async () => {
++    const test = setup();
++
++    await test.capture.acquire();
++
++    await test.capture.stop();
++    await test.capture.stop();
++
++    for (const track of [...test.display.getTracks(), ...test.mic.getTracks()]) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    expect(test.onEnded).not.toHaveBeenCalled();
++  });
++
++  it('rejects processing before both audio inputs are acquired', async () => {
++    const test = setup();
++
++    await expect(test.capture.startProcessing()).rejects.toThrow(
++      /Both audio inputs must be acquired/,
++    );
++
++    expect(test.getDisplayMedia).not.toHaveBeenCalled();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++  });
++
++  it('prevents a stopped capture instance from being reused', async () => {
++    const test = setup();
++
++    await test.capture.acquire();
++    await test.capture.stop();
++
++    await expect(test.capture.acquire()).rejects.toThrow(/Stereo capture cannot be reused/);
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).toHaveBeenCalledOnce();
++  });
++});
++
++function fakeAudioNode() {
++  return {
++    connect: vi.fn().mockImplementation((destination: unknown) => destination),
++    disconnect: vi.fn(),
++  };
++}
++
++function setupProcessing() {
++  const test = setup();
++
++  const merger = fakeAudioNode();
++  const destination = fakeAudioNode();
++
++  const sources = [fakeAudioNode(), fakeAudioNode()];
++
++  const analysers = [0.25, 0.5].map((level) => ({
++    ...fakeAudioNode(),
++    fftSize: 2048,
++    getFloatTimeDomainData: vi.fn((samples: Float32Array) => {
++      samples.fill(level);
++    }),
++  }));
++
++  const gains = Array.from({ length: 3 }, () => ({
++    ...fakeAudioNode(),
++    gain: { value: 1 },
++  }));
++
++  const port = {
++    onmessage: null as ((event: MessageEvent) => void) | null,
++    postMessage: vi.fn(),
++  };
++
++  const processor = {
++    ...fakeAudioNode(),
++    port,
++  };
++
++  const context = {
++    sampleRate: 48000,
++    destination,
++    audioWorklet: {
++      addModule: vi.fn().mockResolvedValue(undefined),
++    },
++    createChannelMerger: vi.fn().mockReturnValue(merger),
++    createMediaStreamSource: vi
++      .fn()
++      .mockReturnValueOnce(sources[0])
++      .mockReturnValueOnce(sources[1]),
++    createAnalyser: vi.fn().mockReturnValueOnce(analysers[0]).mockReturnValueOnce(analysers[1]),
++    createGain: vi
++      .fn()
++      .mockReturnValueOnce(gains[0])
++      .mockReturnValueOnce(gains[1])
++      .mockReturnValueOnce(gains[2]),
++    resume: vi.fn().mockResolvedValue(undefined),
++    close: vi.fn().mockResolvedValue(undefined),
++  };
++
++  const AudioContextMock = vi.fn(function () {
++    return context;
++  });
++
++  const AudioWorkletNodeMock = vi.fn(function () {
++    return processor;
++  });
++
++  vi.stubGlobal('AudioContext', AudioContextMock);
++  vi.stubGlobal('AudioWorkletNode', AudioWorkletNodeMock);
++
++  port.postMessage.mockImplementation((message: { type: string }) => {
++    if (message.type === 'flush') {
++      port.onmessage?.({
++        data: { type: 'flushed' },
++      } as MessageEvent);
++    }
++  });
++
++  return {
++    ...test,
++    context,
++    merger,
++    sources,
++    analysers,
++    gains,
++    destination,
++    processor,
++    port,
++    AudioContextMock,
++    AudioWorkletNodeMock,
++  };
++}
++
++function expectTracksStopped(test: ReturnType<typeof setupProcessing>) {
++  for (const track of [...test.display.getTracks(), ...test.mic.getTracks()]) {
++    expect(track.stop).toHaveBeenCalledOnce();
++  }
++}
++
++describe('stereo audio processing and resource cleanup', () => {
++  afterEach(() => {
++    vi.useRealTimers();
++    vi.unstubAllGlobals();
++  });
++
++  it('releases both audio sources if worklet initialization fails', async () => {
++    const test = setupProcessing();
++
++    test.context.audioWorklet.addModule.mockRejectedValueOnce(
++      new Error('Worklet initialization failed'),
++    );
++
++    await test.capture.acquire();
++
++    await expect(test.capture.startProcessing()).rejects.toThrow('Worklet initialization failed');
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.AudioWorkletNodeMock).not.toHaveBeenCalled();
++    expect(test.onChunk).not.toHaveBeenCalled();
++  });
++
++  it('routes microphone to channel zero and system audio to channel one', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    expect(test.context.createChannelMerger).toHaveBeenCalledWith(2);
++
++    expect(test.context.createMediaStreamSource).toHaveBeenNthCalledWith(1, test.mic);
++
++    expect(test.context.createMediaStreamSource).toHaveBeenNthCalledWith(2, test.display);
++
++    expect(test.gains[0]!.connect).toHaveBeenCalledWith(test.merger, 0, 0);
++
++    expect(test.gains[1]!.connect).toHaveBeenCalledWith(test.merger, 0, 1);
++
++    expect(test.gains[2]!.gain.value).toBe(0);
++
++    expect(test.AudioWorkletNodeMock).toHaveBeenCalledWith(
++      test.context,
++      'cloudscribe-stereo-pcm',
++      expect.objectContaining({
++        channelCount: 2,
++        channelCountMode: 'explicit',
++        outputChannelCount: [2],
++        processorOptions: {
++          targetRate: 16000,
++          chunkFrames: 1600,
++        },
++      }),
++    );
++
++    await test.capture.stop();
++  });
++
++  it('forwards stereo PCM chunks and independent audio levels', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const pcm = new ArrayBuffer(6400);
++
++    test.port.onmessage?.({
++      data: {
++        type: 'chunk',
++        pcm,
++        sequence: 0,
++        startSample: 0,
++        validSamples: 1600,
++        final: false,
++      },
++    } as MessageEvent);
++
++    expect(test.onChunk).toHaveBeenCalledWith({
++      pcm,
++      sequence: 0,
++      startSample: 0,
++      validSamples: 1600,
++      final: false,
++    });
++
++    expect(test.onStatus).toHaveBeenCalledWith({
++      receivedChunks: 1,
++      sampleRate: 48000,
++      micLevel: 0.25,
++      meetingLevel: 0.5,
++    });
++
++    await test.capture.stop();
++  });
++
++  it('flushes pending PCM before releasing audio resources', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const finalPcm = new ArrayBuffer(400);
++
++    test.port.postMessage.mockImplementationOnce(() => {
++      test.port.onmessage?.({
++        data: {
++          type: 'chunk',
++          pcm: finalPcm,
++          sequence: 0,
++          startSample: 0,
++          validSamples: 100,
++          final: true,
++        },
++      } as MessageEvent);
++
++      test.port.onmessage?.({
++        data: { type: 'flushed' },
++      } as MessageEvent);
++    });
++
++    await test.capture.stop();
++
++    expect(test.port.postMessage).toHaveBeenCalledWith({
++      type: 'flush',
++    });
++
++    expect(test.onChunk).toHaveBeenCalledWith({
++      pcm: finalPcm,
++      sequence: 0,
++      startSample: 0,
++      validSamples: 100,
++      final: true,
++    });
++
++    expect(test.onChunk.mock.invocationCallOrder[0]).toBeLessThan(
++      test.mic.audio[0]!.stop.mock.invocationCallOrder[0]!,
++    );
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++
++    for (const node of [test.merger, ...test.sources, ...test.analysers, ...test.gains]) {
++      expect(node.disconnect).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases resources even if the worklet never acknowledges flush', async () => {
++    vi.useFakeTimers();
++
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    test.port.postMessage.mockImplementationOnce(() => undefined);
++
++    const stopping = test.capture.stop();
++
++    expect(test.port.postMessage).toHaveBeenCalledWith({
++      type: 'flush',
++    });
++
++    expect(test.context.close).not.toHaveBeenCalled();
++
++    await vi.advanceTimersByTimeAsync(500);
++    await stopping;
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++  });
++
++  it('automatically releases resources when display sharing ends', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const handler = test.display.video[0]!.addEventListener.mock.calls[0]?.[1] as () => void;
++
++    handler();
++
++    await vi.waitFor(() => {
++      expect(test.onEnded).toHaveBeenCalledOnce();
++    });
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++  });
++
++  it('automatically releases resources when the microphone track ends', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const handler = test.mic.audio[0]!.addEventListener.mock.calls[0]?.[1] as () => void;
++
++    handler();
++
++    await vi.waitFor(() => {
++      expect(test.onEnded).toHaveBeenCalledOnce();
++    });
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++  });
++
++  it('releases resources when AudioContext resume fails', async () => {
++    const test = setupProcessing();
++
++    test.context.resume.mockRejectedValueOnce(new Error('AudioContext resume failed'));
++
++    await test.capture.acquire();
++
++    await expect(test.capture.startProcessing()).rejects.toThrow('AudioContext resume failed');
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++  });
++});

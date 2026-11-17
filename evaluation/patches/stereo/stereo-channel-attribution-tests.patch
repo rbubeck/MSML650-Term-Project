@@ -1,0 +1,299 @@
+diff --git a/frontend/src/services/separateStreamAdapter.stereo.test.ts b/frontend/src/services/separateStreamAdapter.stereo.test.ts
+index d80b5ee..c8b1c62 100644
+--- a/frontend/src/services/separateStreamAdapter.stereo.test.ts
++++ b/frontend/src/services/separateStreamAdapter.stereo.test.ts
+@@ -1,5 +1,6 @@
+ import { describe, expect, it, vi } from 'vitest';
+ import { SeparateStreamAdapter } from './separateStreamAdapter';
++import type { StreamClientHandlers } from '@live-transcription/stream-client';
+ 
+ /** No browser or AWS needed: verifies that two labeled results use ONE transport. */
+ describe('single-WebSocket stereo source separation', () => {
+@@ -82,3 +83,287 @@ describe('single-WebSocket stereo source separation', () => {
+     await adapter.stop();
+   });
+ });
++
++type ProviderResult = Parameters<NonNullable<StreamClientHandlers['onFinal']>>[0];
++
++function makeResult(
++  resultId: string,
++  text: string,
++  isPartial: boolean,
++  channelId?: 'ch_0' | 'ch_1',
++  startMs = 0,
++  endMs = 1000,
++): ProviderResult {
++  return {
++    streamEpoch: 17,
++    resultId,
++    text,
++    isPartial,
++    startMs,
++    endMs,
++    ...(channelId === undefined ? {} : { channelId }),
++  };
++}
++
++async function makeStereoAdapter() {
++  const onCaption = vi.fn();
++  const onFailure = vi.fn();
++  const onDisconnected = vi.fn();
++
++  const captureStop = vi.fn(async () => undefined);
++  const transportStop = vi.fn(async () => undefined);
++  const transportCancel = vi.fn();
++
++  let providerHandlers: StreamClientHandlers | undefined;
++
++  const adapter = new SeparateStreamAdapter({
++    selection: { microphone: true, system: true },
++    stereo: true,
++
++    requestCapability: async () => {
++      throw new Error('Unexpected mono capability request');
++    },
++
++    requestStereoCapability: async () => ({
++      url: 'wss://local-test.invalid',
++      streamEpoch: 17,
++    }),
++
++    createStereoCapture: () => ({
++      acquire: async () => undefined,
++      startProcessing: async () => undefined,
++      stop: captureStop,
++    }),
++
++    createTransport: (handlers) => {
++      providerHandlers = handlers;
++
++      return {
++        start: async () => undefined,
++        sendAudio: () => true,
++        stop: transportStop,
++        cancel: transportCancel,
++      };
++    },
++  });
++
++  await adapter.start('stereo-test-session', {
++    onCaption,
++    onFailure,
++    onDisconnected,
++  });
++
++  if (!providerHandlers) {
++    throw new Error('Provider handlers were not initialized');
++  }
++
++  return {
++    adapter,
++    providerHandlers,
++    onCaption,
++    onFailure,
++    onDisconnected,
++    captureStop,
++    transportStop,
++    transportCancel,
++  };
++}
++
++describe('stereo channel attribution and failure handling', () => {
++  it('attributes partial captions to the correct physical audio sources', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onPartial?.(makeResult('mic-1', 'microphone partial', true, 'ch_0'));
++
++    test.providerHandlers.onPartial?.(makeResult('system-1', 'system partial', true, 'ch_1'));
++
++    expect(test.onCaption).toHaveBeenCalledTimes(2);
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      1,
++      expect.objectContaining({
++        resultId: 'mic-1',
++        source: 'microphone',
++        channelId: 'ch_0',
++        phase: 'partial',
++        text: 'microphone partial',
++        streamEpoch: 17,
++      }),
++    );
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      2,
++      expect.objectContaining({
++        resultId: 'system-1',
++        source: 'system',
++        channelId: 'ch_1',
++        phase: 'partial',
++        text: 'system partial',
++        streamEpoch: 17,
++      }),
++    );
++
++    expect(test.onFailure).not.toHaveBeenCalled();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++
++    await test.adapter.stop();
++  });
++
++  it('preserves source attribution across interleaved partial and final captions', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onPartial?.(makeResult('mic-1', 'hello', true, 'ch_0'));
++
++    test.providerHandlers.onPartial?.(makeResult('system-1', 'good', true, 'ch_1'));
++
++    test.providerHandlers.onFinal?.(makeResult('system-1', 'good morning', false, 'ch_1'));
++
++    test.providerHandlers.onFinal?.(makeResult('mic-1', 'hello everyone', false, 'ch_0'));
++
++    expect(test.onCaption).toHaveBeenCalledTimes(4);
++
++    expect(
++      test.onCaption.mock.calls.map(([event]) => ({
++        resultId: event.resultId,
++        source: event.source,
++        phase: event.phase,
++        text: event.text,
++      })),
++    ).toEqual([
++      {
++        resultId: 'mic-1',
++        source: 'microphone',
++        phase: 'partial',
++        text: 'hello',
++      },
++      {
++        resultId: 'system-1',
++        source: 'system',
++        phase: 'partial',
++        text: 'good',
++      },
++      {
++        resultId: 'system-1',
++        source: 'system',
++        phase: 'final-observed',
++        text: 'good morning',
++      },
++      {
++        resultId: 'mic-1',
++        source: 'microphone',
++        phase: 'final-observed',
++        text: 'hello everyone',
++      },
++    ]);
++
++    expect(test.onFailure).not.toHaveBeenCalled();
++
++    await test.adapter.stop();
++  });
++
++  it('preserves both sources when transcript timestamps overlap', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onFinal?.(
++      makeResult('mic-overlap', 'microphone speaking', false, 'ch_0', 100, 1800),
++    );
++
++    test.providerHandlers.onFinal?.(
++      makeResult('system-overlap', 'system speaking', false, 'ch_1', 500, 1500),
++    );
++
++    expect(test.onCaption).toHaveBeenCalledTimes(2);
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      1,
++      expect.objectContaining({
++        resultId: 'mic-overlap',
++        source: 'microphone',
++        startMs: 100,
++        endMs: 1800,
++      }),
++    );
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      2,
++      expect.objectContaining({
++        resultId: 'system-overlap',
++        source: 'system',
++        startMs: 500,
++        endMs: 1500,
++      }),
++    );
++
++    expect(test.onFailure).not.toHaveBeenCalled();
++
++    await test.adapter.stop();
++  });
++
++  it('fails closed and stops capture and transport when a channel ID is missing', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onFinal?.(makeResult('missing-channel', 'unattributed speech', false));
++
++    await test.adapter.stop();
++
++    expect(test.onCaption).not.toHaveBeenCalled();
++
++    expect(test.onFailure).toHaveBeenCalledOnce();
++    expect(test.onFailure).toHaveBeenCalledWith(expect.stringContaining('without a channel ID'));
++
++    expect(test.captureStop).toHaveBeenCalledOnce();
++    expect(test.transportStop).toHaveBeenCalledOnce();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++  });
++
++  it('rejects an unexpected channel ID instead of guessing its source', async () => {
++    const test = await makeStereoAdapter();
++
++    // Deliberately simulate invalid provider data outside the
++    // compile-time channel ID contract.
++    const invalidResult = {
++      ...makeResult('unknown-channel', 'unexpected speech', false),
++      channelId: 'ch_2',
++    } as unknown as ProviderResult;
++
++    test.providerHandlers.onFinal?.(invalidResult);
++
++    await test.adapter.stop();
++
++    expect(test.onCaption).not.toHaveBeenCalled();
++    expect(test.onFailure).toHaveBeenCalledOnce();
++    expect(test.captureStop).toHaveBeenCalledOnce();
++    expect(test.transportStop).toHaveBeenCalledOnce();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++  });
++
++  it('suppresses subsequent captions and duplicate failures after attribution fails', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onFinal?.(
++      makeResult('valid-before', 'valid microphone speech', false, 'ch_0'),
++    );
++
++    test.providerHandlers.onPartial?.(makeResult('invalid-partial', 'unattributed partial', true));
++
++    test.providerHandlers.onFinal?.(makeResult('valid-after', 'late system speech', false, 'ch_1'));
++
++    test.providerHandlers.onFinal?.(makeResult('invalid-after', 'another invalid result', false));
++
++    await test.adapter.stop();
++
++    expect(test.onCaption).toHaveBeenCalledTimes(1);
++
++    expect(test.onCaption).toHaveBeenCalledWith(
++      expect.objectContaining({
++        resultId: 'valid-before',
++        source: 'microphone',
++      }),
++    );
++
++    expect(test.onFailure).toHaveBeenCalledOnce();
++    expect(test.captureStop).toHaveBeenCalledOnce();
++    expect(test.transportStop).toHaveBeenCalledOnce();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++  });
++});

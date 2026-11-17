@@ -1,0 +1,71 @@
+diff --git a/backend/api/src/aws/transcribe-signer.test.ts b/backend/api/src/aws/transcribe-signer.test.ts
+index ebfad6b..ce6a212 100644
+--- a/backend/api/src/aws/transcribe-signer.test.ts
++++ b/backend/api/src/aws/transcribe-signer.test.ts
+@@ -47,6 +47,7 @@ interface OracleInput {
+   readonly expiresIn: number;
+   readonly signingDate: Date;
+   readonly sessionToken: string | undefined;
++  readonly channels?: 1 | 2;
+ }
+ 
+ /**
+@@ -70,6 +71,10 @@ function oracleSignature(input: OracleInput): { signature: string; signingKeyHex
+     'sample-rate': '16000',
+   };
+   if (input.sessionToken !== undefined) params['X-Amz-Security-Token'] = input.sessionToken;
++  if (input.channels === 2) {
++    params['enable-channel-identification'] = 'true';
++    params['number-of-channels'] = '2';
++  }
+ 
+   const canonicalQuery = Object.keys(params)
+     .sort()
+@@ -164,6 +169,47 @@ describe('createTranscribeUrlSigner', () => {
+     expect(params.get('sample-rate')).toBe('16000');
+   });
+ 
++  it('includes channel identification parameters for stereo requests', async () => {
++    const url = new URL(
++      await createTranscribeUrlSigner(credentials).sign({
++        ...baseInput,
++        channels: 2,
++      }),
++    );
++
++    expect(url.searchParams.get('enable-channel-identification')).toBe('true');
++    expect(url.searchParams.get('number-of-channels')).toBe('2');
++    expect(url.searchParams.get('sample-rate')).toBe('16000');
++    expect(url.searchParams.get('media-encoding')).toBe('pcm');
++  });
++
++  it('omits stereo channel parameters for mono requests', async () => {
++    const url = new URL(await createTranscribeUrlSigner(credentials).sign(baseInput));
++
++    expect(url.searchParams.has('enable-channel-identification')).toBe(false);
++    expect(url.searchParams.has('number-of-channels')).toBe(false);
++  });
++
++  it('matches the independent signature oracle for stereo requests', async () => {
++    const url = new URL(
++      await createTranscribeUrlSigner(credentials).sign({
++        ...baseInput,
++        channels: 2,
++      }),
++    );
++
++    const expected = oracleSignature({
++      region: 'us-east-1',
++      languageCode: 'en-US',
++      expiresIn: 60,
++      signingDate: SIGNING_DATE,
++      sessionToken: SESSION_TOKEN,
++      channels: 2,
++    });
++
++    expect(url.searchParams.get('X-Amz-Signature')).toBe(expected.signature);
++  });
++
+   it('percent-encodes the session token so the URL parses back to the exact token', async () => {
+     const raw = await createTranscribeUrlSigner(credentials).sign(baseInput);
+     expect(raw).not.toContain(SESSION_TOKEN);

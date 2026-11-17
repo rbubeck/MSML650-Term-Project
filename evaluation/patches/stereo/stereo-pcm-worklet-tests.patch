@@ -1,0 +1,274 @@
+diff --git a/frontend/src/audio/stereo-pcm-worklet.test.ts b/frontend/src/audio/stereo-pcm-worklet.test.ts
+new file mode 100644
+index 0000000..551a595
+--- /dev/null
++++ b/frontend/src/audio/stereo-pcm-worklet.test.ts
+@@ -0,0 +1,268 @@
++import { readFileSync } from 'node:fs';
++import { resolve } from 'node:path';
++import { runInNewContext } from 'node:vm';
++import { describe, expect, it } from 'vitest';
++
++const TARGET_RATE = 16_000;
++const CHUNK_FRAMES = 1_600;
++const BYTES_PER_FRAME = 4;
++const CHUNK_BYTES = CHUNK_FRAMES * BYTES_PER_FRAME;
++
++type Chunk = {
++  type: 'chunk';
++  pcm: ArrayBuffer;
++  sequence: number;
++  startSample: number;
++  validSamples: number;
++  final: boolean;
++};
++
++type Output = Chunk | { type: 'flushed' };
++
++type Processor = {
++  port: {
++    onmessage: (message: { data: { type: string } }) => void;
++  };
++  process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean;
++};
++
++function makeProcessor(rate: number) {
++  const chunks: Chunk[] = [];
++  const messages: Output[] = [];
++  let processorConstructor: unknown;
++
++  class FakeBase {
++    port = {
++      onmessage: () => {},
++      postMessage: (payload: Output) => {
++        messages.push(payload);
++        if (payload.type === 'chunk') chunks.push(payload);
++      },
++    };
++  }
++
++  const code = readFileSync(
++    resolve(process.cwd(), 'frontend/public/worklets/stereo-pcm-processor.js'),
++    'utf8',
++  );
++
++  runInNewContext(code, {
++    AudioWorkletProcessor: FakeBase,
++    sampleRate: rate,
++    registerProcessor: (_name: string, ctor: unknown) => {
++      processorConstructor = ctor;
++    },
++    ArrayBuffer,
++    DataView,
++    Float32Array,
++    Math,
++    Number,
++  });
++
++  if (typeof processorConstructor !== 'function') {
++    throw new Error('Stereo AudioWorklet failed to register');
++  }
++
++  const Constructor = processorConstructor as new (options: {
++    processorOptions: object;
++  }) => Processor;
++
++  const processor = new Constructor({
++    processorOptions: {
++      targetRate: TARGET_RATE,
++      chunkFrames: CHUNK_FRAMES,
++    },
++  });
++
++  return {
++    chunks,
++    messages,
++
++    feed: (left: Float32Array, right?: Float32Array) => {
++      for (let i = 0; i < left.length; i += 128) {
++        const channels = [left.slice(i, i + 128)];
++
++        if (right) {
++          channels.push(right.slice(i, i + 128));
++        }
++
++        processor.process([channels], [[]]);
++      }
++    },
++
++    process: (inputs: Float32Array[][], outputs: Float32Array[][]) =>
++      processor.process(inputs, outputs),
++
++    end: () =>
++      processor.port.onmessage({
++        data: { type: 'flush' },
++      }),
++  };
++}
++
++describe('Stereo AudioWorklet 16 kHz PCM output', () => {
++  for (const sourceRate of [44_100, 48_000]) {
++    it(`resamples ${sourceRate} Hz into ten aligned stereo chunks per second`, () => {
++      const processor = makeProcessor(sourceRate);
++
++      processor.feed(
++        new Float32Array(sourceRate).fill(0.5),
++        new Float32Array(sourceRate).fill(-0.5),
++      );
++
++      processor.end();
++
++      expect(processor.chunks).toHaveLength(10);
++
++      processor.chunks.forEach((chunk, index) => {
++        expect(chunk.pcm.byteLength).toBe(CHUNK_BYTES);
++        expect(chunk.sequence).toBe(index);
++        expect(chunk.startSample).toBe(index * CHUNK_FRAMES);
++        expect(chunk.validSamples).toBe(CHUNK_FRAMES);
++        expect(chunk.final).toBe(false);
++
++        const view = new DataView(chunk.pcm);
++
++        expect(view.getInt16(0, true)).toBe(16384);
++        expect(view.getInt16(2, true)).toBe(-16384);
++      });
++    });
++  }
++
++  it('interleaves microphone and system audio in little-endian PCM order', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(Float32Array.from([1, 0.5, -1]), Float32Array.from([-1, -0.5, 1]));
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(1);
++
++    const view = new DataView(processor.chunks[0]!.pcm);
++
++    expect(view.byteLength).toBe(12);
++    expect(view.getInt16(0, true)).toBe(32767);
++    expect(view.getInt16(2, true)).toBe(-32768);
++    expect(view.getInt16(4, true)).toBe(16384);
++    expect(view.getInt16(6, true)).toBe(-16384);
++    expect(view.getInt16(8, true)).toBe(-32768);
++    expect(view.getInt16(10, true)).toBe(32767);
++  });
++
++  it('clamps out-of-range samples independently for each channel', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(Float32Array.from([3, -3]), Float32Array.from([-2, 2]));
++
++    processor.end();
++
++    const view = new DataView(processor.chunks[0]!.pcm);
++
++    expect(view.getInt16(0, true)).toBe(32767);
++    expect(view.getInt16(2, true)).toBe(-32768);
++    expect(view.getInt16(4, true)).toBe(-32768);
++    expect(view.getInt16(6, true)).toBe(32767);
++  });
++
++  it('substitutes silence when the system audio channel is missing', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(new Float32Array(160).fill(0.5));
++    processor.end();
++
++    const chunk = processor.chunks[0]!;
++    const view = new DataView(chunk.pcm);
++
++    expect(chunk.validSamples).toBe(160);
++
++    for (let i = 0; i < 160; i++) {
++      expect(view.getInt16(i * 4, true)).toBe(16384);
++      expect(view.getInt16(i * 4 + 2, true)).toBe(0);
++    }
++  });
++
++  it('flushes a partial final chunk without zero-padding', () => {
++    const processor = makeProcessor(48_000);
++
++    processor.feed(new Float32Array(480).fill(0.5), new Float32Array(480).fill(-0.5));
++
++    expect(processor.chunks).toHaveLength(0);
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(1);
++
++    const chunk = processor.chunks[0]!;
++
++    expect(chunk.validSamples).toBe(160);
++    expect(chunk.pcm.byteLength).toBe(640);
++    expect(chunk.sequence).toBe(0);
++    expect(chunk.startSample).toBe(0);
++    expect(chunk.final).toBe(true);
++    expect(processor.messages.map((message) => message.type)).toEqual(['chunk', 'flushed']);
++  });
++
++  it('preserves sequence numbers and frame offsets across full and partial chunks', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(new Float32Array(1760).fill(0.5), new Float32Array(1760).fill(-0.5));
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(2);
++
++    expect(processor.chunks[0]).toMatchObject({
++      sequence: 0,
++      startSample: 0,
++      validSamples: 1600,
++      final: false,
++    });
++
++    expect(processor.chunks[1]).toMatchObject({
++      sequence: 1,
++      startSample: 1600,
++      validSamples: 160,
++      final: true,
++    });
++
++    expect(processor.chunks[0]!.pcm.byteLength).toBe(6400);
++    expect(processor.chunks[1]!.pcm.byteLength).toBe(640);
++  });
++
++  it('acknowledges an empty flush without emitting an empty audio chunk', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(0);
++    expect(processor.messages).toEqual([{ type: 'flushed' }]);
++  });
++
++  it('does not emit additional audio after flushing', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(new Float32Array(160).fill(0.5), new Float32Array(160).fill(-0.5));
++
++    processor.end();
++
++    processor.feed(new Float32Array(3200).fill(1), new Float32Array(3200).fill(-1));
++
++    expect(processor.chunks).toHaveLength(1);
++  });
++
++  it('silences audio monitoring output', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    const leftOutput = new Float32Array(128).fill(1);
++    const rightOutput = new Float32Array(128).fill(-1);
++
++    processor.process(
++      [[new Float32Array(128).fill(0.5), new Float32Array(128).fill(-0.5)]],
++      [[leftOutput, rightOutput]],
++    );
++
++    expect(Array.from(leftOutput)).toEqual(Array(128).fill(0));
++
++    expect(Array.from(rightOutput)).toEqual(Array(128).fill(0));
++  });
++});

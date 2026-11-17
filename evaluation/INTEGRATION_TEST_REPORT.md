@@ -1119,7 +1119,7 @@ that application dependencies changed.
 ### 13.11 Test Preservation and Integration
 
 Four validated test patches and one alternative diagnostic
-patch were preserved locally:
+patch were preserved as evaluation artifacts:
 
 | Patch | Contents |
 | --- | --- |
@@ -1140,9 +1140,18 @@ After the diagnostic tests were removed from the active test
 file, the complete regression pipeline was rerun successfully,
 restoring the 243-test passing baseline.
 
-The patches remain local artifacts pending integration of
-the stereo implementation into the shared main branch.
-They have not been committed or pushed.
+The patches are preserved as evaluation artifacts under
+`evaluation/patches/stereo/`, together with a README containing
+application instructions, validation procedures, and defect
+reproduction commands.
+
+The patch files are stored as reference artifacts rather than
+applied directly to the shared implementation. Integration of
+the validated tests remains pending until the stereo
+implementation is available on the shared main branch.
+
+The original patch files and isolated review worktree are also
+retained locally.
 
 ### 13.12 Remaining Validation and Next Steps
 

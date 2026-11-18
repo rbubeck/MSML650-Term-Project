@@ -11,6 +11,8 @@ export interface CaptionView {
   timestampMs: number;
   text: string;
   phase: CaptionPhase;
+  /** Browser-local capture period; a pause/resume starts the next period. */
+  streamEpoch?: number;
 }
 
 export interface SessionView {

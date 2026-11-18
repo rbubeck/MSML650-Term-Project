@@ -17,7 +17,7 @@ export interface SourceCaptureStatus {
   receivedChunks: number;
   sampleRate: number;
   micLevel: number;
-  meetingLevel: number;
+  systemLevel: number;
 }
 
 export function sourceGains(sources: AudioSourceSelection): { mic: number; system: number } {
@@ -170,7 +170,7 @@ export class SourceCapture {
             receivedChunks: this.chunkCount,
             sampleRate: context.sampleRate,
             micLevel: this.readLevel(this.micAnalyser),
-            meetingLevel: this.readLevel(this.systemAnalyser),
+            systemLevel: this.readLevel(this.systemAnalyser),
           });
           this.onChunk({
             pcm: data.pcm,
@@ -204,6 +204,36 @@ export class SourceCapture {
     }
   }
 
+  /**
+   * End the current provider epoch without releasing browser-granted media.
+   * A later startProcessing() reuses the same live tracks and therefore does not
+   * reopen Chrome's microphone or display-sharing permission UI.
+   */
+  async pauseProcessing(): Promise<void> {
+    if (!this.started) return;
+    if (this.processor) {
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          this.flushResolver = resolve;
+          this.processor?.port.postMessage({ type: 'flush' });
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 500)),
+      ]);
+    }
+    this.flushResolver = undefined;
+    for (const node of this.nodes) node.disconnect();
+    this.nodes.length = 0;
+    this.processor?.disconnect();
+    this.sink?.disconnect();
+    await this.context?.close().catch(() => undefined);
+    this.context = undefined;
+    this.processor = undefined;
+    this.sink = undefined;
+    this.micAnalyser = undefined;
+    this.systemAnalyser = undefined;
+    this.started = false;
+  }
+
   private connectSource(
     context: AudioContext,
     media: MediaStream,
@@ -234,16 +264,8 @@ export class SourceCapture {
 
   async stop(): Promise<void> {
     if (this.closed) return;
+    await this.pauseProcessing();
     this.closed = true;
-    if (this.processor && this.started) {
-      await Promise.race([
-        new Promise<void>((resolve) => {
-          this.flushResolver = resolve;
-          this.processor?.port.postMessage({ type: 'flush' });
-        }),
-        new Promise<void>((resolve) => setTimeout(resolve, 500)),
-      ]);
-    }
     await this.release();
   }
 
@@ -252,21 +274,10 @@ export class SourceCapture {
       track.removeEventListener('ended', this.handleEnded);
     for (const track of this.mic?.getTracks() ?? [])
       track.removeEventListener('ended', this.handleEnded);
-    for (const node of this.nodes) node.disconnect();
-    this.nodes.length = 0;
-    this.processor?.disconnect();
-    this.sink?.disconnect();
     this.display?.getTracks().forEach((track) => track.stop());
     this.mic?.getTracks().forEach((track) => track.stop());
-    await this.context?.close().catch(() => undefined);
     this.display = undefined;
     this.mic = undefined;
-    this.context = undefined;
-    this.processor = undefined;
-    this.sink = undefined;
-    this.micAnalyser = undefined;
-    this.systemAnalyser = undefined;
-    this.flushResolver = undefined;
-    this.started = false;
+    this.acquired = false;
   }
 }

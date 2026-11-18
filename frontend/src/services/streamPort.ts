@@ -19,5 +19,7 @@ export interface StreamUIHandlers {
 
 export interface StreamUIAdapter {
   start(sessionId: string, handlers: StreamUIHandlers): Promise<void>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
   stop(): Promise<void>;
 }

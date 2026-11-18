@@ -116,7 +116,7 @@ export class StereoSourceCapture {
             receivedChunks: this.receivedChunks,
             sampleRate: context.sampleRate,
             micLevel: this.level(this.micAnalyser),
-            meetingLevel: this.level(this.tabAnalyser),
+            systemLevel: this.level(this.tabAnalyser),
           });
           this.onChunk({
             pcm: value.pcm,
@@ -138,6 +138,30 @@ export class StereoSourceCapture {
       await this.stop();
       throw error;
     }
+  }
+
+  /** Suspend PCM production while retaining the selected tab and microphone tracks. */
+  async pauseProcessing(): Promise<void> {
+    if (!this.running) return;
+    if (this.processor) {
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          this.flushResolve = resolve;
+          this.processor?.port.postMessage({ type: 'flush' });
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 500)),
+      ]);
+    }
+    this.flushResolve = undefined;
+    for (const node of this.nodes) node.disconnect();
+    this.nodes.length = 0;
+    this.processor?.disconnect();
+    await this.context?.close().catch(() => undefined);
+    this.context = undefined;
+    this.processor = undefined;
+    this.micAnalyser = undefined;
+    this.tabAnalyser = undefined;
+    this.running = false;
   }
 
   private attach(
@@ -175,33 +199,16 @@ export class StereoSourceCapture {
 
   async stop(): Promise<void> {
     if (this.closed) return;
+    await this.pauseProcessing();
     this.closed = true;
-    if (this.running && this.processor) {
-      await Promise.race([
-        new Promise<void>((resolve) => {
-          this.flushResolve = resolve;
-          this.processor?.port.postMessage({ type: 'flush' });
-        }),
-        new Promise<void>((resolve) => setTimeout(resolve, 500)),
-      ]);
-    }
-    this.flushResolve = undefined;
     for (const track of this.display?.getTracks() ?? [])
       track.removeEventListener('ended', this.handleEnded);
     for (const track of this.microphone?.getTracks() ?? [])
       track.removeEventListener('ended', this.handleEnded);
-    for (const node of this.nodes) node.disconnect();
-    this.nodes.length = 0;
-    this.processor?.disconnect();
     this.display?.getTracks().forEach((track) => track.stop());
     this.microphone?.getTracks().forEach((track) => track.stop());
-    await this.context?.close().catch(() => undefined);
     this.display = undefined;
     this.microphone = undefined;
-    this.context = undefined;
-    this.processor = undefined;
-    this.micAnalyser = undefined;
-    this.tabAnalyser = undefined;
-    this.running = false;
+    this.acquired = false;
   }
 }

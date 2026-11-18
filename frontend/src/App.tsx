@@ -19,6 +19,9 @@ import {
   LogOut,
   Mic,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pause,
   Plus,
   Radio,
   Search,
@@ -29,17 +32,19 @@ import {
   Trash2,
   UserCircle,
   Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { cognitoAuth } from './auth/cognito';
 import type { AccountView } from './auth/cognito';
 import { config, hasCloudConfig, hasAuthConfig } from './config';
 import { visualLevel } from './audio/sourceCapture';
-import { SeparateStreamAdapter } from './services/separateStreamAdapter';
+import { audioFormatLabel, audioSourceExplanation } from './audio/sourcePresentation';
+import {
+  SeparateStreamAdapter,
+  type SeparateStreamHandlers,
+} from './services/separateStreamAdapter';
 import { createFakeTranscribeTransport } from './services/fakeTranscribeSocket';
-import { formatClock } from './lib/viewModels';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
-import { TranscriptParagraphs } from './components/TranscriptParagraphs';
+import { ContinuousTranscript } from './components/ContinuousTranscript';
 import { exportDemoTranscript, MockSessionStore } from './services/mockSessions';
 import { TeamApi } from './services/teamApi';
 
@@ -52,16 +57,6 @@ function makeDemoAccount(): AccountView {
 
 function friendlyDate(date: string): string {
   return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function phaseLabel(phase: CaptionPhase): string {
-  return {
-    partial: 'Live · partial',
-    'final-observed': 'Final observed',
-    saving: 'Saving…',
-    'save-acknowledged': 'Saved ✓',
-    'save-failed': 'Save failed',
-  }[phase];
 }
 
 function Banner({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'warn' }) {
@@ -114,7 +109,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
           CloudScribe
         </div>
         <div className="auth-intro">
-          <div className="eyebrow">THE FUTURE OF MEETING NOTES</div>
+          <div className="eyebrow">REAL-TIME AUDIO TRANSCRIPTION</div>
           <h1>
             Every conversation,
             <br />
@@ -223,35 +218,6 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
   );
 }
 
-function CaptionRow({ caption }: { caption: CaptionView }) {
-  const saved = caption.phase === 'save-acknowledged';
-  return (
-    <div className={`caption-row phase-${caption.phase}`}>
-      <div className="avatar">{caption.speaker.endsWith('2') ? 'B' : 'A'}</div>
-      <div className="caption-body">
-        <div className="caption-head">
-          <strong>{caption.speaker}</strong>
-          <time>{formatClock(caption.timestampMs)}</time>
-          <span
-            className={`phase-indicator ${saved ? 'saved' : ''}`}
-            aria-label={phaseLabel(caption.phase)}
-          >
-            {saved ? (
-              <CheckCheck size={13} />
-            ) : caption.phase === 'saving' ? (
-              <Clock3 size={13} />
-            ) : (
-              <span className="dot" />
-            )}
-            {phaseLabel(caption.phase)}
-          </span>
-        </div>
-        <p>{caption.text}</p>
-      </div>
-    </div>
-  );
-}
-
 function EmptyTranscript() {
   return (
     <div className="empty-state">
@@ -269,7 +235,8 @@ function EmptyTranscript() {
 export function App() {
   const [account, setAccount] = useState<AccountView | null>(null);
   const [checkingSession, setCheckingSession] = useState(config.mode === 'aws' && hasAuthConfig);
-  const [page, setPage] = useState<Page>('studio');
+  const [page, setPage] = useState<Page>('live');
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [query, setQuery] = useState('');
   const storeRef = useRef(new MockSessionStore());
   const [version, setVersion] = useState(0);
@@ -279,21 +246,20 @@ export function App() {
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [toast, setToast] = useState('');
-  const [micStatus, setMicStatus] = useState<'idle' | 'requesting' | 'recording' | 'error'>('idle');
+  const [micStatus, setMicStatus] = useState<
+    'idle' | 'requesting' | 'recording' | 'paused' | 'error'
+  >('idle');
   const [micError, setMicError] = useState('');
-  const [micChunks, setMicChunks] = useState(0);
-  const [micNativeRate, setMicNativeRate] = useState(0);
   const [useMicrophone, setUseMicrophone] = useState(true);
   const [useSystemAudio, setUseSystemAudio] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
   const [micInputLevel, setMicInputLevel] = useState(0);
-  const [meetingInputLevel, setMeetingInputLevel] = useState(0);
+  const [systemInputLevel, setSystemInputLevel] = useState(0);
   const micDisplayLevel = visualLevel(micInputLevel);
-  const meetingDisplayLevel = visualLevel(meetingInputLevel);
-  const mixedDisplayLevel = visualLevel(
-    Math.max(useMicrophone ? micInputLevel : 0, useSystemAudio ? meetingInputLevel : 0),
-  );
+  const systemDisplayLevel = visualLevel(systemInputLevel);
+  const audioSelection = { microphone: useMicrophone, system: useSystemAudio };
   const micRef = useRef<SeparateStreamAdapter | null>(null);
+  const captureRunRef = useRef(0);
   const [liveDemoCaptions, setLiveDemoCaptions] = useState<CaptionView[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [apiHealth, setApiHealth] = useState<'unknown' | 'checking' | 'reachable' | 'unavailable'>(
@@ -314,6 +280,12 @@ export function App() {
   const refresh = () => setVersion((current) => current + 1);
 
   useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!micRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
     if (config.mode === 'aws' && hasAuthConfig) {
       void cognitoAuth
         .currentUser()
@@ -321,23 +293,25 @@ export function App() {
         .finally(() => setCheckingSession(false));
     }
     return () => {
+      window.removeEventListener('beforeunload', warnBeforeLeaving);
       for (const timer of timersRef.current) clearTimeout(timer);
       void micRef.current?.stop();
     };
   }, []);
 
-  useEffect(() => {
-    if (page !== 'live' && micRef.current) {
-      const active = micRef.current;
-      micRef.current = null;
-      void active.stop();
-      setMicStatus('idle');
-      setMicInputLevel(0);
-      setMeetingInputLevel(0);
+  function navigateTo(nextPage: Page): void {
+    if (nextPage !== 'live' && micRef.current) {
+      setToast('Finalize the active transcript before leaving this session.');
+      return;
     }
-  }, [page]);
+    setPage(nextPage);
+  }
 
   function selectSession(id: string) {
+    if (micRef.current) {
+      setToast('Finalize the active transcript before opening another session.');
+      return;
+    }
     setSelectedId(id);
     setPage('history');
     setLiveDemoCaptions([]);
@@ -345,6 +319,10 @@ export function App() {
   }
 
   function newSession() {
+    if (micRef.current) {
+      setToast('Finalize the active transcript before creating another session.');
+      return;
+    }
     if (config.mode === 'aws') {
       setToast('Session creation awaits the reviewed Zod request schema.');
       return;
@@ -352,6 +330,7 @@ export function App() {
     const created = storeRef.current.create();
     setSelectedId(created.id);
     setLiveDemoCaptions([]);
+    captureRunRef.current = 0;
     setPage('live');
     refresh();
   }
@@ -381,20 +360,19 @@ export function App() {
       setMicStatus('requesting');
       const active = micRef.current;
       try {
-        await active?.stop();
-        if (micRef.current === active) micRef.current = null;
-        setMicStatus('idle');
+        await active?.pause();
+        setMicStatus('paused');
         setToast(
           config.mode === 'mock'
-            ? 'Local simulated stream stopped. No audio was uploaded or saved.'
-            : 'Live transcription stopped. Final captions are not yet persisted.',
+            ? 'Paused. Resume will reuse the same audio permissions.'
+            : 'Paused. The selected audio remains authorized for this session.',
         );
       } catch {
         setMicStatus('error');
-        setMicError('Unable to stop transcription cleanly. Please retry.');
+        setMicError('Unable to pause transcription. Please retry.');
       }
       setMicInputLevel(0);
-      setMeetingInputLevel(0);
+      setSystemInputLevel(0);
       return;
     }
     if (!consentGiven) {
@@ -419,11 +397,25 @@ export function App() {
     }
     setMicStatus('requesting');
     setMicError('');
-    setMicChunks(0);
-    setMicNativeRate(0);
     setMicInputLevel(0);
-    setMeetingInputLevel(0);
-    setLiveDemoCaptions([]);
+    setSystemInputLevel(0);
+    const retained = micStatus === 'paused' ? micRef.current : null;
+    if (retained) {
+      try {
+        await retained.resume();
+        if (micRef.current === retained) setMicStatus('recording');
+      } catch (error) {
+        if (micRef.current !== retained) return;
+        setMicInputLevel(0);
+        setSystemInputLevel(0);
+        setMicError(error instanceof Error ? error.message : 'Unable to resume transcription.');
+        setMicStatus('paused');
+      }
+      return;
+    }
+
+    const captureRun = captureRunRef.current + 1;
+    captureRunRef.current = captureRun;
 
     const adapter = new SeparateStreamAdapter({
       selection: { microphone: useMicrophone, system: useSystemAudio },
@@ -457,54 +449,112 @@ export function App() {
             },
       ...(config.mode === 'mock' ? { createTransport: createFakeTranscribeTransport } : {}),
       onCaptureStatus: (status) => {
-        setMicChunks(status.receivedChunks);
-        setMicNativeRate(status.sampleRate);
         setMicInputLevel((previous) => Math.max(status.micLevel, previous * 0.35));
-        setMeetingInputLevel((previous) => Math.max(status.meetingLevel, previous * 0.35));
+        setSystemInputLevel((previous) => Math.max(status.systemLevel, previous * 0.35));
       },
     });
     micRef.current = adapter;
     try {
       // adapter.start() begins getDisplayMedia before its first await.
-      await adapter.start(selectedId, {
-        onCaption: (event) => {
-          if (micRef.current !== adapter) return;
-          const caption: CaptionView = {
-            id: event.source + ':' + String(event.streamEpoch) + ':' + event.resultId,
-            speaker: event.source === 'microphone' ? 'You' : 'Meeting audio',
-            timestampMs: event.startMs,
-            text: event.text,
-            phase: event.phase,
-          };
-          setLiveDemoCaptions((current) => [
-            ...current.filter((item) => item.id !== caption.id),
-            caption,
-          ]);
-        },
-        onFailure: (message) => {
-          if (micRef.current !== adapter) return;
-          micRef.current = null;
-          setMicError(message);
-          setMicStatus('error');
-        },
-        onDisconnected: () => {
-          if (micRef.current !== adapter) return;
-          micRef.current = null;
-          setMicError(
-            'Audio sharing or the transcription stream ended. Select your sources and start again.',
-          );
-          setMicStatus('error');
-        },
-      });
+      await adapter.start(selectedId, streamHandlers(adapter, captureRun));
       if (micRef.current === adapter) setMicStatus('recording');
     } catch (error) {
       if (micRef.current !== adapter) return;
       micRef.current = null;
       await adapter.stop().catch(() => undefined);
       setMicInputLevel(0);
-      setMeetingInputLevel(0);
+      setSystemInputLevel(0);
       setMicError(error instanceof Error ? error.message : 'Unable to start transcription.');
       setMicStatus('error');
+    }
+  }
+
+  function streamHandlers(
+    adapter: SeparateStreamAdapter,
+    captureRun: number,
+  ): SeparateStreamHandlers {
+    return {
+      onCaption: (event) => {
+        if (micRef.current !== adapter) return;
+        const caption: CaptionView = {
+          id: event.source + ':' + String(event.streamEpoch) + ':' + event.resultId,
+          speaker: event.source === 'microphone' ? 'Microphone' : 'System audio',
+          timestampMs: event.startMs,
+          text: event.text,
+          phase: event.phase,
+          streamEpoch: captureRun,
+        };
+        setLiveDemoCaptions((current) => [
+          ...current.filter((item) => item.id !== caption.id),
+          caption,
+        ]);
+      },
+      onFailure: (message) => {
+        if (micRef.current !== adapter) return;
+        micRef.current = null;
+        setMicError(message);
+        setMicStatus('error');
+      },
+      onDisconnected: () => {
+        if (micRef.current !== adapter) return;
+        micRef.current = null;
+        setMicError(
+          'The selected audio source ended. Choose the source again to continue this session.',
+        );
+        setMicStatus('error');
+      },
+    };
+  }
+
+  async function finishSession() {
+    if (config.mode === 'aws' && micStatus === 'recording') {
+      const active = micRef.current;
+      setMicStatus('requesting');
+      try {
+        await active?.pause();
+        setMicStatus('paused');
+        setMicError(
+          'Capture is paused. Finish again after every observed final shows as durably saved.',
+        );
+      } catch {
+        setMicStatus('error');
+        setMicError('Unable to settle the current transcription stream. Please retry.');
+      }
+      return;
+    }
+    const unsavedFinals = liveDemoCaptions.some((caption) => caption.phase === 'final-observed');
+    if (config.mode === 'aws' && unsavedFinals) {
+      setMicError(
+        'This session still has final text awaiting durable acknowledgment. Finish is blocked to prevent transcript loss.',
+      );
+      return;
+    }
+    const active = micRef.current;
+    setMicStatus('requesting');
+    setMicError('');
+    try {
+      await active?.stop();
+      if (micRef.current === active) micRef.current = null;
+      if (config.mode === 'aws') {
+        const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+        await api.completeSession(selectedId, {});
+      } else if (storeRef.current.get(selectedId)) {
+        for (const caption of liveDemoCaptions.filter(
+          (entry) => entry.phase === 'final-observed' || entry.phase === 'save-acknowledged',
+        )) {
+          storeRef.current.saveCaption(selectedId, { ...caption, phase: 'save-acknowledged' });
+        }
+        refresh();
+      }
+      setMicStatus('idle');
+      setMicInputLevel(0);
+      setSystemInputLevel(0);
+      setToast('Session finalized and closed.');
+      setPage('history');
+    } catch (error) {
+      if (micRef.current === active) micRef.current = null;
+      setMicStatus('paused');
+      setMicError(error instanceof Error ? error.message : 'Unable to finalize this session.');
     }
   }
 
@@ -546,8 +596,12 @@ export function App() {
           timestampMs: 0,
           text: item.text,
           phase: item.phase,
+          streamEpoch: captureRunRef.current || 1,
         };
-        setLiveDemoCaptions([caption]);
+        setLiveDemoCaptions((current) => [
+          ...current.filter((existing) => existing.id !== caption.id),
+          caption,
+        ]);
         if (item.phase === 'save-acknowledged' && storeRef.current.get(id)) {
           storeRef.current.saveCaption(id, caption);
           refresh();
@@ -571,6 +625,10 @@ export function App() {
   }
 
   async function logout() {
+    if (micRef.current) {
+      setToast('Finalize the active transcript before signing out.');
+      return;
+    }
     if (config.mode === 'aws') await cognitoAuth.logout();
     setAccount(null);
   }
@@ -605,63 +663,85 @@ export function App() {
 
   return (
     <div className="app-frame">
-      <aside className="sidebar" aria-label="Main navigation">
+      <aside
+        className={`sidebar ${sidebarExpanded ? 'sidebar-expanded' : 'sidebar-collapsed'}`}
+        aria-label="Main navigation"
+      >
         <div className="brand">
           <span className="brand-mark">
             <AudioLines size={22} />
           </span>
-          <span>CloudScribe</span>
-          <span className="brand-version">beta</span>
+          <span className="sidebar-copy">CloudScribe</span>
+          <span className="brand-version sidebar-copy">beta</span>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={sidebarExpanded ? 'Collapse navigation' : 'Expand navigation'}
+            onClick={() => setSidebarExpanded((expanded) => !expanded)}
+          >
+            {sidebarExpanded ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
         </div>
         <div className="sidebar-actions">
-          <button className="new-button" onClick={newSession}>
-            <Plus size={18} /> New session <span>⌘ K</span>
+          <button className="new-button" onClick={newSession} title="New transcription session">
+            <Plus size={18} /> <span className="sidebar-copy new-button-label">New session</span>
           </button>
         </div>
         <nav className="main-nav" aria-label="Workspace sections">
-          {(['studio', 'live', 'history', 'settings'] as const).map((name) => {
+          {(['live', 'history', 'settings'] as const).map((name) => {
             const Icon = icons[name];
             return (
               <button
                 key={name}
-                onClick={() => setPage(name)}
+                onClick={() => navigateTo(name)}
                 className={`nav-link ${page === name ? 'active' : ''}`}
                 aria-current={page === name ? 'page' : undefined}
+                title={
+                  name === 'live'
+                    ? 'Record'
+                    : name === 'history'
+                      ? 'Transcript library'
+                      : 'Settings'
+                }
               >
                 <Icon size={18} />
-                {name === 'studio'
-                  ? 'Workspace'
-                  : name === 'live'
-                    ? 'Live transcription'
+                <span className="sidebar-copy">
+                  {name === 'live'
+                    ? 'Record'
                     : name === 'history'
                       ? 'Transcript library'
                       : 'Settings'}
+                </span>
               </button>
             );
           })}
         </nav>
-        <div className="sidebar-section">
-          <div className="sidebar-section-heading">
-            <span>YOUR SESSIONS</span>
-            <MoreHorizontal size={16} />
+        {sessions.length > 0 && (
+          <div className="sidebar-section sidebar-copy">
+            <div className="sidebar-section-heading">
+              <span>RECENT SESSIONS</span>
+              <MoreHorizontal size={16} />
+            </div>
+            <div className="sidebar-session-list">
+              {sessions.slice(0, 8).map((item) => (
+                <button
+                  key={item.id}
+                  className={`sidebar-session ${selectedId === item.id ? 'selected' : ''}`}
+                  onClick={() => selectSession(item.id)}
+                >
+                  <FileText size={15} />
+                  <span>{item.title}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="sidebar-session-list">
-            {sessions.slice(0, 8).map((item) => (
-              <button
-                key={item.id}
-                className={`sidebar-session ${selectedId === item.id ? 'selected' : ''}`}
-                onClick={() => selectSession(item.id)}
-              >
-                <FileText size={15} />
-                <span>{item.title}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
         <div className="sidebar-bottom">
           <div className="connection-status">
             <span className={`status-dot ${config.mode === 'aws' ? 'pending' : ''}`} />
-            {config.mode === 'mock' ? 'Local demo environment' : 'AWS integration mode'}
+            <span className="sidebar-copy">
+              {config.mode === 'mock' ? 'Local demo' : 'AWS mode'}
+            </span>
           </div>
           <button className="profile" onClick={() => void logout()} title="Sign out">
             <div className="profile-avatar">
@@ -679,44 +759,24 @@ export function App() {
       <div className="main-area">
         <header className="topbar">
           <div className="breadcrumb">
-            Workspace <span>/</span>{' '}
-            <strong>
-              {page === 'studio'
-                ? 'Overview'
-                : page === 'live'
-                  ? 'Live studio'
-                  : page === 'history'
-                    ? 'Transcript library'
-                    : 'Settings'}
-            </strong>
+            <strong>CloudScribe</strong>
+            <span>/</span>{' '}
+            {page === 'live' ? 'Record' : page === 'history' ? 'Library' : 'Settings'}
           </div>
           <div className="topbar-right">
             <span className="top-label">
-              <ShieldCheck size={15} />{' '}
-              {config.mode === 'mock' ? 'Safe demo mode' : 'Cognito enabled'}
+              <ShieldCheck size={15} /> {config.mode === 'mock' ? 'Demo mode' : 'Signed in'}
             </span>
             <button
               className="icon-button"
               aria-label="View settings"
-              onClick={() => setPage('settings')}
+              onClick={() => navigateTo('settings')}
             >
               <Settings2 size={17} />
             </button>
           </div>
         </header>
-        <main className="content">
-          {config.mode === 'mock' ? (
-            <Banner>
-              <strong>Demo mode:</strong> captions and sessions use fake data. Microphone checks
-              capture real PCM locally but do not send or save audio.
-            </Banner>
-          ) : (
-            <Banner tone="warn">
-              <strong>AWS integration:</strong> Cognito is configurable; API routes remain proposed,
-              and the shared streaming client is not yet implemented.
-            </Banner>
-          )}
-
+        <main className={`content page-${page}`}>
           {page === 'studio' && (
             <>
               <section className="hero">
@@ -833,255 +893,159 @@ export function App() {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow accent">LIVE STUDIO</div>
-                  <h1>Capture the conversation</h1>
-                  <p>
-                    Select microphone, system audio, or both, and view clearly distinguished live
-                    caption states.
-                  </p>
+                  <h1>Live transcription</h1>
+                  <p>Select an audio source, start capture, and read one continuous transcript.</p>
                 </div>
-                <span className="pill">
-                  <Radio size={15} /> Audio workspace
-                </span>
               </div>
-              <div className="live-grid">
-                <section className="panel recording-panel">
-                  <div className="panel-top">
-                    <span className="panel-kicker">
-                      <span
-                        className={`status-dot ${micStatus === 'recording' ? 'recording' : ''}`}
-                      />
-                      {micStatus === 'recording' ? 'Live transcription active' : 'Capture ready'}
-                    </span>
-                    <span className="mode-label">16 kHz • Mono • PCM 16-bit</span>
-                  </div>
-                  <div className="capture-picker">
-                    <h2>Start a live session</h2>
-                    <p className="capture-picker-subtitle">
-                      Choose which audio to capture for transcription.
-                    </p>
-                    <div className="capture-mode-options" role="group" aria-label="Audio sources">
-                      <label
-                        className={
-                          useMicrophone ? 'capture-mode-option selected' : 'capture-mode-option'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={useMicrophone}
-                          disabled={micStatus === 'requesting' || micStatus === 'recording'}
-                          onChange={(event) => setUseMicrophone(event.target.checked)}
-                        />
-                        <span className="capture-mode-copy">
-                          <strong>Microphone</strong>
-                          <small>Capture your voice using the selected microphone</small>
-                        </span>
-                      </label>
-                      <label
-                        className={
-                          useSystemAudio ? 'capture-mode-option selected' : 'capture-mode-option'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={useSystemAudio}
-                          disabled={micStatus === 'requesting' || micStatus === 'recording'}
-                          onChange={(event) => setUseSystemAudio(event.target.checked)}
-                        />
-                        <span className="capture-mode-copy">
-                          <strong>Meeting &amp; computer audio</strong>
-                          <small>
-                            Transcribe meetings, videos, or other sound shared from a tab or screen
-                          </small>
-                        </span>
-                      </label>
-                    </div>
-                    <div className="capture-source-explainer" role="note">
-                      <AudioLines size={17} aria-hidden="true" />
-                      <span>
-                        System audio uses the browser's sharing picker. If selected,{' '}
-                        <strong>enable Share audio</strong> and choose a source that exposes audio.
-                        Microphone-only capture does not require screen sharing. When both are
-                        enabled, their audio is mixed into one transcript, so individual words
-                        cannot be reliably assigned to Mic or System.
-                      </span>
-                    </div>
-                    <label className="capture-consent">
-                      <input
-                        type="checkbox"
-                        checked={consentGiven}
-                        disabled={micStatus === 'requesting' || micStatus === 'recording'}
-                        onChange={(event) => setConsentGiven(event.target.checked)}
-                      />
-                      <span>
-                        I have informed the meeting participants and have permission to transcribe
-                        this conversation.
-                      </span>
-                    </label>
-                  </div>
-                  <div className={`record-visual ${micStatus === 'recording' ? 'active' : ''}`}>
-                    <div className="record-circle">
-                      <Mic size={38} />
-                    </div>
-                    <div className="wave-bars live-meter" aria-hidden="true">
-                      {Array.from({ length: 23 }, (_, index) => (
-                        <span
-                          key={index}
-                          style={{
-                            height: `${6 + mixedDisplayLevel * (12 + ((index * 23) % 48))}px`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="capture-levels" aria-label="Live capture levels">
-                    {useMicrophone && (
-                      <div
-                        className="capture-source-level"
-                        role="meter"
-                        aria-label="Microphone input level"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(micDisplayLevel * 100)}
-                      >
-                        <span>Your microphone</span>
-                        <span className="capture-level-track" aria-hidden="true">
-                          <span style={{ width: `${Math.round(micDisplayLevel * 100)}%` }} />
-                        </span>
-                        <strong>{Math.round(micDisplayLevel * 100)}%</strong>
-                      </div>
-                    )}
-                    {useSystemAudio && (
-                      <div
-                        className="capture-source-level"
-                        role="meter"
-                        aria-label="Meeting and computer audio input level"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(meetingDisplayLevel * 100)}
-                      >
-                        <span>Meeting audio</span>
-                        <span className="capture-level-track" aria-hidden="true">
-                          <span style={{ width: `${Math.round(meetingDisplayLevel * 100)}%` }} />
-                        </span>
-                        <strong>{Math.round(meetingDisplayLevel * 100)}%</strong>
-                      </div>
-                    )}
-                  </div>
-                  <p className="capture-status-copy">
-                    {micStatus === 'recording'
-                      ? config.mode === 'mock'
-                        ? 'Local audio is streaming through the simulated provider. Captions are not real speech recognition.'
-                        : 'Audio is being streamed to Amazon Transcribe. Finals are not saved to the session API yet.'
-                      : 'Choose microphone, system audio, or both to start live transcription.'}
-                  </p>
-                  <div className="live-stats">
-                    <div>
-                      <strong>{micChunks}</strong>
-                      <span>PCM chunks</span>
-                    </div>
+              <section className="panel live-workspace">
+                <header className="live-workspace-toolbar">
+                  <div className="live-workspace-status">
+                    <span
+                      className={`status-dot ${
+                        micStatus === 'recording'
+                          ? 'recording'
+                          : micStatus === 'paused'
+                            ? 'paused'
+                            : ''
+                      }`}
+                    />
                     <div>
                       <strong>
-                        {micNativeRate ? `${(micNativeRate / 1_000).toFixed(1)} kHz` : '—'}
+                        {micStatus === 'recording'
+                          ? 'Recording'
+                          : micStatus === 'paused'
+                            ? 'Paused'
+                            : 'Ready'}
                       </strong>
-                      <span>Browser input</span>
-                    </div>
-                    <div>
-                      <strong>16 kHz</strong>
-                      <span>PCM output</span>
+                      <span>{audioFormatLabel(config.mode, audioSelection)}</span>
                     </div>
                   </div>
-                  <button
-                    className={
-                      micStatus === 'recording'
-                        ? 'danger recording-button'
-                        : 'primary recording-button'
-                    }
-                    disabled={
-                      micStatus === 'requesting' ||
-                      (micStatus !== 'recording' &&
-                        (!consentGiven || (!useMicrophone && !useSystemAudio)))
-                    }
-                    onClick={() => void toggleMicrophone()}
-                  >
-                    {micStatus === 'recording' ? (
-                      <>
-                        <Square size={17} /> Stop capture
-                      </>
-                    ) : (
-                      <>
-                        <Mic size={18} />{' '}
-                        {micStatus === 'requesting'
-                          ? 'Requesting permissions…'
-                          : config.mode === 'mock'
-                            ? 'Start simulated transcription'
-                            : 'Start live transcription'}
-                      </>
+                  <div className="live-session-actions">
+                    {(micStatus === 'recording' || micStatus === 'paused') && (
+                      <button className="secondary" onClick={() => void finishSession()}>
+                        <Square size={14} /> Finish
+                      </button>
                     )}
-                  </button>
-                  {micError && (
-                    <div className="form-feedback" role="alert">
-                      {micError}
-                    </div>
-                  )}
-                  <p className="consent-note">
-                    <LockKeyhole size={13} /> Only the selected audio is mixed into the local PCM
-                    stream. Sharing video is required by the browser picker, but no video is
-                    processed or saved. Stop sharing at any time to end capture.
-                  </p>
-                </section>
+                    <button
+                      className={micStatus === 'recording' ? 'danger' : 'primary'}
+                      disabled={
+                        micStatus === 'requesting' ||
+                        (micStatus !== 'recording' &&
+                          (!consentGiven || (!useMicrophone && !useSystemAudio)))
+                      }
+                      onClick={() => void toggleMicrophone()}
+                    >
+                      {micStatus === 'recording' ? (
+                        <>
+                          <Pause size={16} /> Pause
+                        </>
+                      ) : (
+                        <>
+                          <Mic size={17} />
+                          {micStatus === 'requesting'
+                            ? 'Working…'
+                            : liveDemoCaptions.length
+                              ? 'Resume'
+                              : 'Start transcription'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </header>
 
-                <section className="panel captions-panel">
-                  <div className="panel-top">
-                    <div>
-                      <strong>Live transcript</strong>
-                      <p>Timestamped conversation timeline</p>
-                    </div>
-                    <div className="live-pill">
-                      <span /> {config.mode === 'mock' ? 'Simulated stream' : 'AWS transcription'}
-                    </div>
-                  </div>
-                  <div className="captions-scroller" aria-live="polite">
-                    {selectedDisplay.length ? (
-                      <TranscriptParagraphs
-                        captions={selectedDisplay}
-                        simulated={config.mode === 'mock'}
+                <div className="live-source-bar">
+                  <div className="live-source-options" role="group" aria-label="Audio sources">
+                    <label className={useMicrophone ? 'selected' : ''}>
+                      <input
+                        type="checkbox"
+                        checked={useMicrophone}
+                        disabled={
+                          micStatus === 'requesting' ||
+                          micStatus === 'recording' ||
+                          (micStatus === 'paused' && micRef.current !== null)
+                        }
+                        onChange={(event) => setUseMicrophone(event.target.checked)}
                       />
-                    ) : (
-                      <EmptyTranscript />
+                      <Mic size={16} />
+                      <span>Microphone</span>
+                    </label>
+                    <label className={useSystemAudio ? 'selected' : ''}>
+                      <input
+                        type="checkbox"
+                        checked={useSystemAudio}
+                        disabled={
+                          micStatus === 'requesting' ||
+                          micStatus === 'recording' ||
+                          (micStatus === 'paused' && micRef.current !== null)
+                        }
+                        onChange={(event) => setUseSystemAudio(event.target.checked)}
+                      />
+                      <AudioLines size={16} />
+                      <span>System audio</span>
+                    </label>
+                  </div>
+                  <span className="live-source-help">
+                    {micRef.current && useSystemAudio
+                      ? 'System audio is selected for this session. Pause and Resume keep the same shared tab authorized.'
+                      : audioSourceExplanation(config.mode, audioSelection)}
+                  </span>
+                </div>
+
+                <div className="live-consent-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={consentGiven}
+                      disabled={micStatus === 'requesting' || micStatus === 'recording'}
+                      onChange={(event) => setConsentGiven(event.target.checked)}
+                    />
+                    <span>I have permission to transcribe this audio.</span>
+                  </label>
+                  <div className="live-levels" aria-label="Audio input levels">
+                    {useMicrophone && (
+                      <span title={`Microphone level ${Math.round(micDisplayLevel * 100)}%`}>
+                        Mic
+                        <i style={{ width: `${Math.max(4, micDisplayLevel * 100)}%` }} />
+                      </span>
+                    )}
+                    {useSystemAudio && (
+                      <span title={`System audio level ${Math.round(systemDisplayLevel * 100)}%`}>
+                        System
+                        <i style={{ width: `${Math.max(4, systemDisplayLevel * 100)}%` }} />
+                      </span>
                     )}
                   </div>
-                  <div className="caption-footer">
-                    <div className="caption-legend">
-                      <span>
-                        <span className="dot purple" /> Partial
-                      </span>
-                      <span>
-                        <span className="dot orange" /> Final observed
-                      </span>
-                      <span>
-                        <CheckCheck size={12} /> Saved
-                      </span>
-                    </div>
-                    {config.mode === 'mock' ? (
-                      <button className="secondary small" onClick={playMockCaptions}>
-                        <Sparkles size={15} /> Play sample captions
-                      </button>
-                    ) : (
-                      <button
-                        className="secondary small"
-                        disabled
-                        title="Real captions arrive when the AWS stream is active"
-                      >
-                        <WifiOff size={15} /> Live captions appear during capture
-                      </button>
-                    )}
+                </div>
+
+                {micError && (
+                  <div className="form-feedback live-error" role="alert">
+                    {micError}
                   </div>
-                </section>
-              </div>
-              <Banner>
-                In the real AWS flow, final text must be acknowledged by the session API before the
-                UI marks it saved. Partial captions are never durable.
-              </Banner>
+                )}
+
+                <div className="live-document-shell" aria-live="polite">
+                  <ContinuousTranscript
+                    captions={selectedDisplay}
+                    active={micStatus === 'recording'}
+                    simulated={config.mode === 'mock'}
+                  />
+                </div>
+
+                <footer className="live-workspace-footer">
+                  <span>
+                    {micStatus === 'recording'
+                      ? 'Final results are appended to this document as they arrive.'
+                      : micStatus === 'paused'
+                        ? 'Paused sources stay authorized. Finish closes and saves the session.'
+                        : 'The session is saved only when you finish it.'}
+                  </span>
+                  {config.mode === 'mock' && (
+                    <button className="secondary small" onClick={playMockCaptions}>
+                      <Sparkles size={14} /> Preview formatting
+                    </button>
+                  )}
+                </footer>
+              </section>
             </>
           )}
 
@@ -1205,10 +1169,16 @@ export function App() {
                         </span>
                       </div>
                       <div className="detail-caption-list">
-                        {session.captions.length ? (
-                          session.captions
-                            .filter((caption) => caption.phase === 'save-acknowledged')
-                            .map((caption) => <CaptionRow key={caption.id} caption={caption} />)
+                        {session.captions.some(
+                          (caption) => caption.phase === 'save-acknowledged',
+                        ) ? (
+                          <ContinuousTranscript
+                            captions={session.captions.filter(
+                              (caption) => caption.phase === 'save-acknowledged',
+                            )}
+                            simulated={config.mode === 'mock'}
+                            context="history"
+                          />
                         ) : (
                           <EmptyTranscript />
                         )}
@@ -1322,14 +1292,6 @@ export function App() {
             </>
           )}
         </main>
-        <footer className="footer">
-          <span>CloudScribe • MSML 650</span>
-          <span>
-            {config.mode === 'mock'
-              ? 'No AWS charges · Demo data only'
-              : 'AWS account authorization required for paid testing'}
-          </span>
-        </footer>
       </div>
       {toast && (
         <button className="toast" onClick={() => setToast('')} role="status">

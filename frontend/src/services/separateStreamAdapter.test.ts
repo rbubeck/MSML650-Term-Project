@@ -16,7 +16,7 @@ const status = (source: AudioSource): SourceCaptureStatus => ({
   receivedChunks: 1,
   sampleRate: 48000,
   micLevel: source === 'microphone' ? 0.3 : 0,
-  meetingLevel: source === 'system' ? 0.7 : 0,
+  systemLevel: source === 'system' ? 0.7 : 0,
 });
 
 function setup(selection: { microphone: boolean; system: boolean }) {
@@ -26,24 +26,31 @@ function setup(selection: { microphone: boolean; system: boolean }) {
   const onFailure = vi.fn();
   const onDisconnected = vi.fn();
   let nextId = 0;
+  const emitters: Partial<Record<AudioSource, (chunk: PcmChunk) => void>> = {};
   const adapter = new SeparateStreamAdapter({
     selection,
     requestCapability: async () => {
       steps.push('capability');
       return { url: 'wss://local-test.invalid', streamEpoch: ++nextId };
     },
-    createCapture: (source, onChunk, onStatus) => ({
-      acquire: async () => {
-        steps.push(`acquire-${source}`);
-      },
-      startProcessing: async () => {
-        onChunk(PCM(source === 'microphone' ? 11 : 22));
-        onStatus(status(source));
-      },
-      stop: async () => {
-        steps.push(`stop-${source}`);
-      },
-    }),
+    createCapture: (source, onChunk, onStatus) => {
+      emitters[source] = onChunk;
+      return {
+        acquire: async () => {
+          steps.push(`acquire-${source}`);
+        },
+        startProcessing: async () => {
+          onChunk(PCM(source === 'microphone' ? 11 : 22));
+          onStatus(status(source));
+        },
+        pauseProcessing: async () => {
+          steps.push(`pause-${source}`);
+        },
+        stop: async () => {
+          steps.push(`stop-${source}`);
+        },
+      };
+    },
     createTransport: (handlers) => {
       const thisTransport = sent.length;
       sent.push([]);
@@ -68,10 +75,10 @@ function setup(selection: { microphone: boolean; system: boolean }) {
       return transport;
     },
   });
-  return { adapter, steps, sent, caption, onFailure, onDisconnected };
+  return { adapter, steps, sent, caption, onFailure, onDisconnected, emitters };
 }
 
-describe('independent microphone and meeting transcription paths', () => {
+describe('independent microphone and system-audio transcription paths', () => {
   it('acquires both sources before awaiting stream capabilities and never mixes PCM', async () => {
     const t = setup({ microphone: true, system: true });
     await t.adapter.start('owned-test-session', {
@@ -104,7 +111,7 @@ describe('independent microphone and meeting transcription paths', () => {
     await t.adapter.stop();
   });
 
-  it('keeps meeting-only working without requesting a microphone', async () => {
+  it('keeps system-only capture working without requesting a microphone', async () => {
     const t = setup({ microphone: false, system: true });
     await t.adapter.start('test-session', {
       onCaption: t.caption,
@@ -114,6 +121,28 @@ describe('independent microphone and meeting transcription paths', () => {
     expect(t.steps).toContain('acquire-system');
     expect(t.steps).not.toContain('acquire-microphone');
     expect(t.sent).toEqual([[22]]);
+    await t.adapter.stop();
+  });
+
+  it('pauses both selected sources with silence and resumes without new transports', async () => {
+    const t = setup({ microphone: true, system: true });
+    await t.adapter.start('test-session', {
+      onCaption: t.caption,
+      onFailure: t.onFailure,
+      onDisconnected: t.onDisconnected,
+    });
+    await t.adapter.pause();
+    t.emitters.system?.(PCM(22));
+    t.emitters.microphone?.(PCM(11));
+    await t.adapter.resume();
+    t.emitters.system?.(PCM(22));
+    t.emitters.microphone?.(PCM(11));
+    expect(t.steps.filter((step) => step === 'capability')).toHaveLength(2);
+    expect(t.sent).toHaveLength(2);
+    expect(t.sent[0]).toEqual([22, 0, 22]);
+    expect(t.sent[1]).toEqual([11, 0, 11]);
+    expect(t.steps).not.toContain('pause-system');
+    expect(t.steps).not.toContain('pause-microphone');
     await t.adapter.stop();
   });
 });

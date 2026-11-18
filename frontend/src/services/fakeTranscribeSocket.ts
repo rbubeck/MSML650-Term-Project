@@ -13,7 +13,7 @@ import {
  * of the same test sentence.
  */
 const SAMPLE_CAPTIONS = [
-  'This is a sample of how a live meeting transcript will look.',
+  'This is a sample of how a continuous live transcript will look.',
   'CloudScribe is receiving audio frames through the streaming client.',
   'Each completed caption is displayed with its time and audio source.',
   'This is a simulated preview, not recognition of the words being spoken.',
@@ -45,6 +45,9 @@ export class FakeTranscribeSocket implements StreamWebSocket {
       queueMicrotask(() => this.close());
       return;
     }
+    // Paused capture deliberately sends PCM silence to keep the provider
+    // connection alive. Silence must not advance the simulated transcript.
+    if (packet.payload.every((byte) => byte === 0)) return;
     this.frames += 1;
     const group = Math.ceil(this.frames / 10);
     if (group > SAMPLE_CAPTIONS.length) return; // No repeating demo captions.

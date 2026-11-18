@@ -99,7 +99,7 @@ export class SeparateStreamAdapter {
           receivedChunks: (mic?.receivedChunks ?? 0) + (system?.receivedChunks ?? 0),
           sampleRate: status.sampleRate,
           micLevel: mic?.micLevel ?? 0,
-          meetingLevel: system?.meetingLevel ?? 0,
+          systemLevel: system?.systemLevel ?? 0,
         });
       };
       const adapter = new DirectStreamAdapter({
@@ -209,6 +209,37 @@ export class SeparateStreamAdapter {
     } finally {
       this.starting = false;
     }
+  }
+
+  /** Keep capture/transports alive while every selected source sends silence. */
+  async pause(): Promise<void> {
+    if (this.stopping) return this.stopping;
+    if (this.active.length === 0) return;
+    this.stopping = (async () => {
+      try {
+        const outcomes = await Promise.allSettled(this.active.map((adapter) => adapter.pause()));
+        const rejection = outcomes.find(
+          (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+        );
+        if (rejection) throw new Error('One of the transcription streams could not pause cleanly.');
+      } finally {
+        this.captureStatus = {};
+        this.stopping = undefined;
+      }
+    })();
+    return this.stopping;
+  }
+
+  /** Resume real PCM on the existing capture and provider connections. */
+  async resume(): Promise<void> {
+    if (this.starting || this.active.length === 0) {
+      throw new Error('No paused audio capture is available to resume.');
+    }
+    const outcomes = await Promise.allSettled(this.active.map((adapter) => adapter.resume()));
+    const rejection = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+    );
+    if (rejection) throw new Error('One of the transcription streams could not resume.');
   }
 
   stop(): Promise<void> {

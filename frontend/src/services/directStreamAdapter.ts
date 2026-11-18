@@ -18,6 +18,7 @@ export interface StreamTransport {
 export interface CaptureBridge {
   acquire(): Promise<void>;
   startProcessing(): Promise<void>;
+  pauseProcessing(): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -42,6 +43,7 @@ export class DirectStreamAdapter implements StreamUIAdapter {
   private connecting = false;
   private stopping: Promise<void> | undefined;
   private aborting: Promise<void> | undefined;
+  private paused = false;
 
   constructor(private readonly options: DirectStreamAdapterOptions) {}
 
@@ -89,14 +91,18 @@ export class DirectStreamAdapter implements StreamUIAdapter {
     const capture = this.options.createCapture(
       (chunk) => {
         if (this.transport !== transport) return;
+        const audio = this.paused ? new Uint8Array(chunk.pcm.byteLength) : chunk.pcm;
         // The stream client emits a safe onError for buffer overflow/invalid audio.
-        if (!transport.sendAudio(chunk.pcm) && !failed) {
+        if (!transport.sendAudio(audio) && !failed) {
           failed = true;
           handlers.onFailure('Audio could not be sent to the transcription stream.');
           void this.abortAfterFailure();
         }
       },
-      this.options.onCaptureStatus ?? (() => undefined),
+      (status) =>
+        this.options.onCaptureStatus?.(
+          this.paused ? { ...status, micLevel: 0, systemLevel: 0 } : status,
+        ),
       () => {
         if (this.capture !== capture || failed) return;
         failed = true;
@@ -128,6 +134,24 @@ export class DirectStreamAdapter implements StreamUIAdapter {
     }
   }
 
+  /** Keep the provider session alive, but replace captured PCM with silence. */
+  pause(): Promise<void> {
+    if (!this.capture || !this.transport) {
+      return Promise.reject(new Error('No active transcription stream is available to pause.'));
+    }
+    this.paused = true;
+    return Promise.resolve();
+  }
+
+  /** Resume real PCM on the existing capture and provider connection. */
+  resume(): Promise<void> {
+    if (!this.capture || !this.transport) {
+      return Promise.reject(new Error('No paused transcription stream is available to resume.'));
+    }
+    this.paused = false;
+    return Promise.resolve();
+  }
+
   stop(): Promise<void> {
     if (this.stopping) return this.stopping;
     this.stopping = this.stopActive();
@@ -139,11 +163,14 @@ export class DirectStreamAdapter implements StreamUIAdapter {
     const transport = this.transport;
     this.capture = undefined;
     try {
-      // Capture.flush() must run before the provider end frame.
-      await capture?.stop();
+      // Processing must flush before the provider end frame. Media tracks are
+      // released only after that epoch has closed.
+      await capture?.pauseProcessing();
       this.transport = undefined;
       await transport?.stop();
+      await capture?.stop();
     } finally {
+      this.paused = false;
       this.transport = undefined;
       this.stopping = undefined;
     }
@@ -160,6 +187,7 @@ export class DirectStreamAdapter implements StreamUIAdapter {
     const transport = this.transport;
     this.capture = undefined;
     this.transport = undefined;
+    this.paused = false;
     transport?.cancel();
     try {
       await capture?.stop();

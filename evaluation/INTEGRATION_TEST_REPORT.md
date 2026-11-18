@@ -1187,3 +1187,485 @@ The results demonstrate expanded deterministic test coverage
 without modifying production code or incurring AWS usage.
 Live AWS integration and application-level performance
 validation remain outstanding.
+
+## 14. Integrated Stereo and Continuous Transcript Review — November 18, 2026
+
+### 14.1 Review Objective
+
+A subsequent integration review was conducted after the stereo audio implementation was incorporated into the integrated frontend branch.
+
+The objectives were to:
+
+- Validate compatibility with the previously developed stereo regression tests.
+- Evaluate the updated audio capture and stream shutdown lifecycle.
+- Verify continuous transcript behavior and document-level persistence indicators.
+- Repeat local browser integration testing against the updated interface.
+- Identify defects requiring remediation before application acceptance.
+- Preserve reproducible automated test artifacts for the development team.
+
+This review extends the findings documented in Section 13 rather than replacing the historical results.
+
+### 14.2 Review Environment
+
+| Attribute | Value |
+| --- | --- |
+| Review date | November 18, 2026 |
+| Reviewed branch | `nandan/integrate-stereo-v5` |
+| Reviewed commit | `4a80e09` |
+| Operating environment | Ubuntu 24.04 through WSL on Windows |
+| Browser | Microsoft Edge |
+| Frontend execution mode | Local mock mode |
+| Test framework | Vitest 5.0.5 |
+| Production build tool | Vite 8.3.6 |
+| Evaluation owner | Person 5 |
+| AWS deployment or modification | None |
+
+The integrated implementation was reviewed in an isolated detached Git worktree. The shared main branch and existing evaluation feature branch were not modified during test execution.
+
+### 14.3 Original Integrated Baseline
+
+The original integrated implementation was evaluated before applying additional regression tests.
+
+| Quality check | Result |
+| --- | --- |
+| Formatting | Pass |
+| Linting | Pass |
+| Type checking | Pass |
+| Automated tests | 198 passed |
+| Test files | 27 passed |
+| Production build | Pass |
+| Combined quality pipeline | Pass |
+
+The shared contracts and stream-client packages were built before executing the test pipeline.
+
+The original integrated implementation passed all existing automated tests. However, additional regression and diagnostic coverage subsequently identified reliability and persistence-status defects not exercised by the original suite.
+
+### 14.4 Expanded Automated Test Coverage
+
+The previous stereo regression tests were adapted to the integrated implementation, and additional tests were developed for the updated capture lifecycle, stream shutdown behavior, and continuous transcript functionality.
+
+Compatibility adjustments included updating the audio-level status property and providing the newly required capture pause-processing operation in simulated test fixtures.
+
+The expanded coverage includes:
+
+- Stereo Transcribe URL signing and channel configuration.
+- Independent microphone and system audio PCM encoding.
+- Audio resampling, channel interleaving, and partial-buffer flushing.
+- Microphone and system audio channel attribution.
+- Rejection of invalid or missing stereo channel identifiers.
+- Audio acquisition ordering and permission failure handling.
+- Capture cancellation and resource cleanup.
+- Concurrent stop operations.
+- Display audio termination during microphone acquisition.
+- Stream shutdown failures.
+- Continuous transcript assembly and partial-result replacement.
+- Document-level persistence status across multiple capture blocks.
+
+No production implementation files were modified.
+
+### 14.5 Expanded Automated Test Results
+
+The final expanded automated suite produced the following results:
+
+| Metric | Original baseline | Expanded suite |
+| --- | ---: | ---: |
+| Total test files | 27 | 29 |
+| Passing test files | 27 | 26 |
+| Failing test files | 0 | 3 |
+| Total tests | 198 | 252 |
+| Passing tests | 198 | 244 |
+| Failing tests | 0 | 8 |
+| Pass rate | 100% | 96.83% |
+
+A total of 54 additional tests were introduced, consisting of 46 passing tests and eight failing diagnostic or regression tests.
+
+The eight failures correspond to five identified defects. No unexpected failures were observed in the final expanded test execution.
+
+#### Results by Expanded Test File
+
+| Test area | Passed | Failed | Total |
+| --- | ---: | ---: | ---: |
+| Transcribe URL signer | 16 | 0 | 16 |
+| Stereo PCM worklet | 10 | 0 | 10 |
+| Stereo source capture | 18 | 4 | 22 |
+| Stereo channel attribution | 7 | 0 | 7 |
+| Direct stream adapter | 4 | 2 | 6 |
+| Continuous transcript logic | 12 | 0 | 12 |
+| Continuous transcript component | 2 | 2 | 4 |
+| Other existing test files | 175 | 0 | 175 |
+| **Total** | **244** | **8** | **252** |
+
+The expanded suite is intentionally not reported as passing overall. The failing tests provide reproducible evidence of outstanding implementation defects.
+
+### 14.6 Independent Quality Validation
+
+The following checks were executed independently with the complete expanded test suite present:
+
+| Quality check | Result |
+| --- | --- |
+| `npm run format:check` | Pass |
+| `npm run lint` | Pass |
+| `npm run typecheck` | Pass |
+| `npm test` | Fail — eight known failures |
+| `npm run build` | Pass |
+
+The production build completed successfully across the frontend, API, contracts, and stream-client workspaces.
+
+Frontend build measurements were:
+
+| Metric | Result |
+| --- | ---: |
+| Transformed modules | 2,315 |
+| Frontend bundling time | 986 ms |
+| HTML bundle | 0.55 kB |
+| CSS bundle | 30.19 kB |
+| JavaScript bundle | 515.30 kB |
+| Compressed JavaScript bundle | 152.51 kB |
+
+The existing Vite warning concerning a JavaScript chunk larger than 500 kB remains present.
+
+The combined `npm run check` command is not expected to pass on this revision with the expanded tests applied because the test stage contains eight known failures.
+
+### 14.7 Updated Browser Integration Testing
+
+Manual browser testing was conducted using the integrated frontend in local mock mode.
+
+The review evaluated the updated continuous transcript interface, independent audio source selection, audio-level indicators, pause and resume behavior, session completion, and local session history.
+
+| Browser test area | Result |
+| --- | --- |
+| Start disabled without an audio source | Pass |
+| Start disabled without consent | Pass |
+| Microphone-only capture | Pass |
+| System-audio-only capture | Pass |
+| Dual-source capture | Pass |
+| Independent microphone and system audio meters | Pass |
+| Microphone pause and resume | Pass |
+| Dual-source pause and resume | Pass |
+| External system audio termination | Pass with defect |
+| Recovery after external termination | Pass |
+| Session completion and capture release | Pass |
+| Session rename and local history | Pass |
+| Continuous transcript presentation | Pass |
+
+The external system audio termination test reproduced BUG-001. The application returned to a recoverable state and displayed an appropriate error message, but the system audio meter retained a stale nonzero value.
+
+#### Representative Browser Test Evidence
+
+| Test | Observation |
+| --- | --- |
+| BT-22 | System audio capture completed successfully, with 12 saved mock segments. |
+| BT-26 | Microphone capture completed successfully, with five saved mock segments. |
+| BT-29 | Microphone and system audio meters responded independently during dual-source capture. |
+| BT-30 | Dual-source pause and resume retained the capture session, stopped simulated transcript progression while paused, and restored audio activity after resuming. |
+| BT-31 | Dual-source completion released the browser capture indicators and produced 10 saved mock segments in local session history. |
+
+Previously created mock sessions remained visible after completing the dual-source test.
+
+The browser tests demonstrated functional local capture controls and simulated transcript behavior. They did not establish real Amazon Transcribe stereo recognition or durable AWS persistence.
+
+### 14.8 Continuous Transcript and Pause Behavior
+
+The integrated frontend introduces a continuous document presentation rather than displaying each transcription result as an independent transcript card.
+
+Automated testing confirmed the expected behavior of the continuous transcript assembly logic, including the handling of partial and final transcription results.
+
+Browser testing also confirmed that:
+
+- Pausing retains the current transcript.
+- Audio-level indicators reset during a normal pause.
+- Resuming restores audio activity without requiring another source-selection prompt in the tested mock sessions.
+- Completing a session releases the selected browser audio sources.
+- Completed mock transcripts remain accessible through local session history.
+
+However, component-level diagnostic tests identified an incorrect document-level Saved indicator when an earlier capture block contains failed or unacknowledged transcription results.
+
+This finding is documented as BUG-006.
+
+The local mock session store is memory-based. Successful mock history operations must not be interpreted as verification of durable persistence.
+
+### 14.9 Updated Defect Register
+
+| ID | Description | Provisional severity | Status |
+| --- | --- | --- | --- |
+| BUG-001 | Stale system audio meter after external capture termination | Low | Open |
+| BUG-002 | Concurrent stop requests initiate duplicate worklet flush operations | Medium | Open |
+| BUG-003 | Stereo startup succeeds after display audio ends during microphone acquisition | Medium | Open |
+| BUG-004 | AudioContext cleanup is skipped after initialization or resume failure | Medium | Open |
+| BUG-005 | Stream shutdown errors prevent subsequent resource cleanup | High | Open |
+| BUG-006 | Document incorrectly reports Saved despite earlier failed or unacknowledged results | High | Open |
+
+Severity classifications are provisional and reflect potential application impact rather than confirmed production incidents.
+
+BUG-001 through BUG-003 were previously identified. BUG-004 through BUG-006 were newly identified during the integrated review.
+
+#### BUG-001 — Stale Audio Meter After External Termination
+
+When system audio sharing is terminated externally through the browser, the application displays an appropriate error and allows recovery.
+
+However, the system audio meter retains its previous nonzero value.
+
+Expected behavior:
+
+- Reset the affected audio meter when capture terminates.
+- Present a consistent inactive or recoverable capture state.
+
+Actual behavior:
+
+- The system audio meter remains visually active after the selected source ends.
+
+Potential impact:
+
+- Misleading recording-state information.
+- User uncertainty regarding whether audio capture has stopped.
+
+Continued recording was not established.
+
+#### BUG-002 — Concurrent Stop Operations
+
+The original stereo review identified a concurrent stop condition in which a second stop request could resolve before resource cleanup completed.
+
+The integrated implementation exhibits a related but different failure.
+
+Expected behavior:
+
+- Concurrent stop requests share a single cleanup operation.
+- Only one worklet flush request is initiated.
+- Cleanup completes before either stop request resolves.
+
+Actual behavior:
+
+- Two concurrent stop requests initiate two worklet flush operations.
+- The diagnostic test did not reproduce premature stop completion under the updated test conditions.
+- Final resource cleanup completed once in the tested scenario.
+
+Potential impact:
+
+- Duplicate flush operations.
+- Unnecessary shutdown delays.
+- Race conditions involving flush acknowledgments.
+
+Recommended remediation:
+
+- Use a shared in-flight cleanup promise.
+- Ensure concurrent stop requests cannot initiate duplicate flush operations.
+
+The historical premature-completion symptom is not claimed to be reproduced by the updated diagnostic test.
+
+#### BUG-003 — Display Audio Termination During Acquisition
+
+Stereo acquisition can continue successfully when the display audio track ends while microphone permission is pending.
+
+Expected behavior:
+
+- Reject startup if either required stereo audio source has ended.
+- Release any acquired resources.
+
+Actual behavior:
+
+- Stereo acquisition and processing startup succeed despite the ended display audio track.
+
+Potential impact:
+
+- A recording session may begin without a valid system audio source.
+- The application may incorrectly represent both audio sources as available.
+
+Recommended remediation:
+
+- Register source termination handlers earlier in the acquisition lifecycle.
+- Revalidate required audio tracks after asynchronous permission requests and before processing starts.
+
+#### BUG-004 — AudioContext Cleanup Failure
+
+Two regression tests identified missing AudioContext cleanup when stereo audio processing fails during initialization.
+
+The reproduced failure scenarios were:
+
+1. AudioWorklet initialization failure.
+2. AudioContext resume failure.
+
+Expected behavior:
+
+- Close the AudioContext.
+- Release acquired media tracks.
+- Disconnect any initialized processing resources.
+
+Actual behavior:
+
+- Media tracks are released.
+- The AudioContext close operation is not invoked in either tested failure scenario.
+
+The updated cleanup path depends on the processing-running state, which may not be established when initialization fails.
+
+Potential impact:
+
+- Unreleased browser audio-processing resources.
+- Resource accumulation following repeated failed startup attempts.
+
+Recommended remediation:
+
+- Perform cleanup based on allocated resources rather than only the running-state flag.
+- Ensure partially initialized processing resources are released.
+
+Actual browser resource accumulation was not measured.
+
+#### BUG-005 — Stream Shutdown Cleanup Failure
+
+Two direct stream adapter diagnostic tests identified cleanup failures when an earlier shutdown operation rejects.
+
+The reproduced scenarios were:
+
+1. The provider transport stop operation throws an error.
+2. The capture pause-processing operation throws an error.
+
+Expected behavior:
+
+- Attempt to release capture resources even when transport shutdown fails.
+- Attempt transport shutdown or cancellation even when capture processing shutdown fails.
+
+Actual behavior:
+
+- A provider shutdown failure prevents the subsequent capture stop operation.
+- A capture pause-processing failure prevents both transport and capture cleanup operations.
+
+Potential impact:
+
+- Browser capture resources may remain allocated.
+- Transport connections may remain open.
+- Recording-state and privacy guarantees may be compromised.
+
+Recommended remediation:
+
+- Make shutdown operations exception-safe.
+- Attempt independent cleanup operations even when an earlier operation fails.
+- Preserve meaningful error reporting after cleanup attempts complete.
+
+The tests reproduce skipped cleanup operations using simulated components. Continued real recording or an active AWS connection was not established.
+
+#### BUG-006 — Incorrect Document-Level Saved Status
+
+Two continuous transcript component tests identified an incorrect persistence indicator across multiple capture blocks.
+
+The reproduced scenarios were:
+
+1. An earlier capture block contains a failed result, followed by a later acknowledged block.
+2. An earlier capture block contains an unacknowledged result, followed by a later acknowledged block.
+
+Expected behavior:
+
+- Display a document-level Saved indicator only when all relevant final results have been acknowledged.
+- Preserve the failure or pending persistence state when an earlier capture block remains unresolved.
+
+Actual behavior:
+
+- The document displays Saved in both reproduced scenarios.
+
+A separate test confirmed that Saved is correctly displayed when all relevant capture blocks are acknowledged.
+
+Potential impact:
+
+- Users may incorrectly believe their entire transcript has been persisted.
+- Earlier failed or pending results may be overlooked before session completion.
+
+Recommended remediation:
+
+- Derive document-level persistence status from all relevant final results.
+- Ensure failed or pending results prevent a document-wide Saved indicator.
+
+The component tests establish incorrect status reporting. Actual durable transcript loss was not demonstrated.
+
+### 14.10 Automated Defect Reproduction Summary
+
+| Defect | Test area | Failing tests |
+| --- | --- | ---: |
+| BUG-002 | Stereo source capture | 1 |
+| BUG-003 | Stereo source capture | 1 |
+| BUG-004 | Stereo source capture | 2 |
+| BUG-005 | Direct stream adapter | 2 |
+| BUG-006 | Continuous transcript component | 2 |
+| **Total** | | **8** |
+
+BUG-001 was reproduced separately through manual browser testing.
+
+The eight failing tests have been preserved without weakening their assertions or modifying production implementation code.
+
+### 14.11 Test Artifact Preservation
+
+The complete integrated regression and diagnostic suite is preserved in:
+
+`evaluation/patches/integrated-stereo/integrated-stereo-tests.patch`
+
+The patch contains:
+
+- Seven modified or newly introduced test files.
+- 1,576 added lines.
+- 54 additional automated tests.
+- 46 additional passing tests.
+- Eight reproducible failing tests.
+- No production implementation changes.
+
+The patch targets integrated commit `4a80e09`.
+
+A separate clean detached worktree was created at the same commit, and `git apply --check` completed successfully with exit code 0.
+
+The preserved repository copy was also compared against the original local patch and verified to be byte-for-byte identical.
+
+Reproduction instructions, expected results, targeted diagnostic commands, and limitations are documented in:
+
+`evaluation/patches/integrated-stereo/README.md`
+
+The integrated patch is a standalone artifact and must not be applied cumulatively with the earlier stereo patches targeting a different source revision.
+
+### 14.12 Merge Readiness Assessment
+
+The original integrated implementation passes its existing quality pipeline, and the expanded review demonstrates substantial successful regression coverage.
+
+The following areas are supported by the local evaluation:
+
+- Stereo URL signing.
+- Stereo PCM encoding and resampling.
+- Channel attribution under deterministic test conditions.
+- Normal browser capture and session controls.
+- Continuous transcript assembly.
+- Successful production compilation.
+
+However, six defects remain open, including two provisionally high-severity findings involving resource cleanup and persistence-status accuracy.
+
+The evaluation recommendation is to resolve BUG-005 and BUG-006 before treating the integrated implementation as merge-ready. BUG-001 through BUG-004 should also be addressed or explicitly dispositioned by the development team.
+
+The expanded regression tests should be rerun following remediation.
+
+This recommendation concerns the reviewed implementation revision and does not constitute a production readiness assessment.
+
+### 14.13 Remaining Integration and Performance Validation
+
+The following evaluation activities remain outstanding:
+
+1. Coordinate remediation of BUG-001 through BUG-006 with the responsible implementation owners.
+2. Rerun the expanded 252-test suite against the corrected implementation.
+3. Integrate the applicable regression tests into the shared implementation after source integration and defect remediation.
+4. Complete fake-backed end-to-end application testing across frontend, API, and persistence boundaries.
+5. Validate authentication and ownership isolation using two independent users.
+6. Validate duplicate final-result handling, persistence acknowledgments, reconnect behavior, and session completion.
+7. Execute an authorized AWS smoke test for the integrated stereo streaming implementation.
+8. Validate durable session history, transcript persistence, and deletion.
+9. Measure integrated transcription accuracy, channel attribution, and latency using controlled audio inputs.
+10. Execute the authorized extended-duration and reconnect reliability evaluation after successful short-duration testing.
+
+The previously completed standalone LibriSpeech and AMI transcription evaluations remain useful accuracy baselines but do not substitute for integrated application performance measurements.
+
+No AWS deployment, resource modification, or live integrated stereo streaming test was performed during this review.
+
+### 14.14 Conclusion
+
+The integrated stereo and continuous transcript review expanded automated coverage from 198 to 252 tests.
+
+The final expanded suite produced 244 passing tests and eight reproducible failures across 29 test files. Formatting, linting, type checking, and production compilation completed successfully.
+
+Manual browser testing demonstrated functional local microphone, system audio, dual-source capture, pause and resume, session completion, and mock session history behavior.
+
+Three previously identified defects remain open, and three additional defects were identified involving initialization cleanup, stream shutdown cleanup, and document-level persistence status.
+
+All expanded automated tests have been preserved as a reproducible evaluation patch targeting the reviewed integrated commit.
+
+The results provide actionable evidence for implementation remediation and regression testing. Full application acceptance remains pending defect resolution, durable persistence validation, authorized AWS integration testing, and integrated performance evaluation.

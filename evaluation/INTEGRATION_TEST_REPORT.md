@@ -1669,3 +1669,423 @@ Three previously identified defects remain open, and three additional defects we
 All expanded automated tests have been preserved as a reproducible evaluation patch targeting the reviewed integrated commit.
 
 The results provide actionable evidence for implementation remediation and regression testing. Full application acceptance remains pending defect resolution, durable persistence validation, authorized AWS integration testing, and integrated performance evaluation.
+
+
+## 15. Fake-Backed Cross-Package Integration Testing — November 18, 2026
+
+### 15.1 Evaluation Objective
+
+The objective of this testing phase was to establish automated integration
+coverage across the currently available Option A frontend, backend, and
+streaming implementation while durable persistence and integrated AWS
+functionality remain under development.
+
+Unlike the existing component-level unit tests, these tests exercise
+multiple real implementation components within a single local execution
+path.
+
+The evaluation focuses on:
+
+- Authorized streaming capability issuance.
+- Session ownership isolation.
+- Stream epoch allocation.
+- Partial and final transcript delivery.
+- Provider and repository failure handling.
+- Connection recovery.
+- Capture cleanup.
+- Sensitive-data protection.
+- Stale provider message rejection.
+
+No production application implementation changes were required.
+
+### 15.2 Test Environment and Implementation Scope
+
+| Attribute | Value |
+| --- | --- |
+| Evaluation date | November 18, 2026 |
+| Repository | MSML650-Term-Project |
+| Working branch | `rachel/local-integration-tests` |
+| Base implementation | Main branch at `6d2f72f` |
+| Test environment | Local WSL/Linux development environment |
+| Test framework | Vitest 5.0.5 |
+| Build framework | Vite 8.3.6 |
+| Streaming implementation | Current main-branch mono Option A path |
+| AWS access | Not required or used |
+| Audio input | Synthetic 16-bit PCM |
+| Provider output | Deterministic EventStream fixtures |
+| Repository | In-memory fake |
+
+This evaluation is separate from the integrated stereo review documented
+in Section 14.
+
+The results do not establish remediation of the previously reported
+stereo or continuous transcript defects.
+
+### 15.3 Cross-Package Integration Architecture
+
+The integration harness connects the real frontend API client to the
+real backend stream-URL handler using an in-process HTTP bridge.
+
+The bridge converts frontend HTTP requests into simulated API Gateway
+events containing synthetic identity claims.
+
+The backend handler performs authentication checks, request validation,
+admission control, ownership verification, stream epoch allocation,
+signing, and response validation using its existing interfaces.
+
+The frontend adapter then consumes the returned streaming capability and
+opens a real stream-client instance backed by a controlled fake WebSocket.
+
+Synthetic PCM frames are processed through the real EventStream encoding
+implementation. Deterministic provider transcript frames are decoded and
+converted into frontend caption events.
+
+The integration path is:
+
+```text
+Frontend TeamApi
+    |
+    v
+In-process HTTP bridge
+    |
+    v
+Backend stream-URL handler
+    |
+    +--> Fake identity and admission control
+    +--> Fake session repository
+    +--> Fake signer and fixed clock
+    +--> Recording logger
+    |
+    v
+Validated streaming capability
+    |
+    v
+DirectStreamAdapter
+    |
+    v
+TranscribeStreamClient
+    |
+    v
+EventStream codec and controlled fake WebSocket
+    |
+    v
+Partial and final-observed frontend captions
+```
+
+The harness uses the existing shared contracts and production component
+interfaces without introducing new production dependencies.
+
+### 15.4 Automated Integration Test Results
+
+The integration suite contains 13 automated tests.
+
+| ID | Scenario | Result |
+| --- | --- | --- |
+| INT-001 | Valid capability through frontend and backend | PASS |
+| INT-002 | Two-user ownership isolation | PASS |
+| INT-003 | Missing authentication rejection | PASS |
+| INT-004 | Signing failure and safe retry | PASS |
+| INT-005 | Fresh capabilities and increasing epochs | PASS |
+| INT-006 | Complete available local streaming pipeline | PASS |
+| INT-007 | Provider exception and capture cleanup | PASS |
+| INT-008 | Unexpected disconnect and reconnect | PASS |
+| INT-009 | Sensitive-data protection | PASS |
+| INT-010 | Corrupted EventStream frame | PASS |
+| INT-011 | Repository failure and recovery | PASS |
+| INT-012 | Authorization rejection prevents capture | PASS |
+| INT-013 | Stale provider message rejection | PASS |
+
+Aggregate standalone integration results:
+
+| Metric | Result |
+| --- | ---: |
+| Test files | 1 |
+| Total tests | 13 |
+| Passed | 13 |
+| Failed | 0 |
+| Skipped | 0 |
+| Pass rate | 100% |
+| Test execution time | 126 ms |
+| Total Vitest duration | 4.66 seconds |
+
+The reported execution times describe local automated test execution.
+They are not transcription latency or application performance measurements.
+
+### 15.5 Authorization and Ownership Isolation
+
+The authorization tests verify that:
+
+- An authenticated owner can request a valid streaming capability.
+- A user cannot request a capability for another user's session.
+- Foreign and nonexistent sessions return indistinguishable responses.
+- Missing authentication is rejected before signing.
+- Rejected authorization prevents provider connection establishment.
+- Rejected authorization prevents audio capture from starting.
+- Repeated authorized requests allocate increasing stream epochs.
+
+The tests use two synthetic users and an in-memory repository.
+
+They establish ownership enforcement through the current stream-URL
+handler but do not establish real Cognito authentication or ownership
+isolation across unimplemented lifecycle endpoints.
+
+### 15.6 Streaming and Recovery Behavior
+
+The successful streaming journey verifies that synthetic PCM passes
+through the real frontend adapter and stream-client encoding path.
+
+The fake provider returns deterministic partial and final transcript
+events, which are decoded and delivered to the frontend with the
+appropriate stream epoch and result identifier.
+
+The recovery tests additionally verify that:
+
+- Provider exceptions produce safe failure notifications.
+- Corrupted EventStream frames produce safe protocol errors.
+- Failed streams close their simulated provider connection.
+- Failure handling invokes the simulated capture cleanup interface.
+- An unexpected disconnect permits an explicit restart of the same
+  logical session.
+- Restart requests a fresh streaming capability.
+- The new connection uses a newer stream epoch.
+- Messages from the previous connection are ignored.
+
+The tests do not establish automatic application reconnection or physical
+browser audio-resource cleanup.
+
+### 15.7 Signing and Repository Failure Behavior
+
+Signing and repository failures are injected through the existing
+deterministic fake interfaces.
+
+| Behavior | Signing failure | Repository failure |
+| --- | --- | --- |
+| Repository allocation succeeds | Yes | No |
+| Epoch consumed before failure | Yes | No |
+| Signer invoked | Yes | No |
+| Successful capability returned | No | No |
+| Safe backend error code | `SIGNING_FAILED` | `INTERNAL_ERROR` |
+| Epoch after successful retry | 2 | 1 |
+
+The signing failure test verifies that allocated epochs are not reused
+when signing fails.
+
+The repository failure test verifies that a failure injected before
+allocation does not consume an epoch or establish a provider connection.
+
+After the fake repository recovers, the same frontend adapter can
+successfully retry the streaming journey.
+
+The repository test does not model an ambiguous database failure in
+which a conditional write succeeds but its response is lost.
+
+### 15.8 Privacy and Sensitive-Data Protection
+
+The integration tests use synthetic sensitive markers to verify that
+selected diagnostic channels do not expose:
+
+- Raw provider exception details.
+- Raw repository exception details.
+- Synthetic access tokens.
+- Signed streaming capability URLs.
+- Signature values.
+- Session identifiers.
+- User identifiers.
+- Transcript content.
+
+The inspected diagnostic channels include:
+
+- Backend error responses.
+- Recorded backend log events.
+- Frontend failure notifications.
+- Selected console logging methods.
+
+The tests confirm that the exercised failure paths return bounded,
+content-free diagnostic information.
+
+The successful capability response necessarily contains the streaming URL,
+and successful caption callbacks necessarily contain transcript text.
+These intended application data paths are not treated as diagnostic
+leakage.
+
+The evaluation does not constitute a comprehensive privacy or security
+audit of all application components or deployed logging destinations.
+
+### 15.9 TypeScript Validation Infrastructure
+
+A dedicated TypeScript configuration was introduced at:
+
+`tests/integration/tsconfig.json`
+
+The configuration extends the existing strict repository TypeScript
+settings and includes the browser and Node.js types required by the
+cross-package integration harness.
+
+The root `package.json` typecheck command was updated to execute the
+integration configuration in addition to the existing root and workspace
+checks.
+
+The integration tests are therefore included in the standard repository
+validation pipeline:
+
+```bash
+npm run check
+```
+
+The dedicated integration typecheck completed successfully without errors.
+
+### 15.10 Full Repository Validation
+
+The complete repository validation pipeline was executed after the
+integration tests and TypeScript configuration were implemented.
+
+| Validation stage | Result |
+| --- | --- |
+| Prettier formatting | PASS |
+| ESLint | PASS |
+| Root TypeScript checking | PASS |
+| Integration TypeScript checking | PASS |
+| Frontend TypeScript checking | PASS |
+| Backend API TypeScript checking | PASS |
+| Contracts TypeScript checking | PASS |
+| Stream-client TypeScript checking | PASS |
+| Automated tests | PASS |
+| Frontend production build | PASS |
+| Backend API build | PASS |
+| Contracts package build | PASS |
+| Stream-client package build | PASS |
+
+Repository-wide automated test results:
+
+| Metric | Previous baseline | Updated result |
+| --- | ---: | ---: |
+| Test files | 21 | 22 |
+| Automated TypeScript tests | 177 | 190 |
+| Passing tests | 177 | 190 |
+| Failing tests | 0 | 0 |
+| Pass rate | 100% | 100% |
+
+The integration suite increased the automated TypeScript test count by
+13 tests, representing a 7.34% increase over the previous main-branch
+baseline.
+
+The full Vitest execution completed in 13.18 seconds.
+
+The frontend production build completed successfully in 22.20 seconds.
+
+| Frontend artifact | Uncompressed size | Gzip size |
+| --- | ---: | ---: |
+| HTML | 0.55 kB | 0.33 kB |
+| CSS | 20.90 kB | 5.70 kB |
+| JavaScript | 495.94 kB | 148.13 kB |
+
+Vite emitted an informational plugin-timing notice. No build failure
+occurred.
+
+These results apply to the current main-branch implementation and must
+not be combined with the separate 252-test integrated stereo evaluation.
+
+### 15.11 Test Artifacts and Reproduction
+
+The integration implementation and supporting documentation are located at:
+
+- `tests/integration/streaming-journey.test.ts`
+- `tests/integration/tsconfig.json`
+- `tests/integration/README.md`
+
+The root validation command was updated in:
+
+- `package.json`
+
+To reproduce the integration tests:
+
+```bash
+npx vitest run tests/integration/streaming-journey.test.ts
+```
+
+To reproduce the dedicated integration typecheck:
+
+```bash
+npx tsc --project tests/integration/tsconfig.json
+```
+
+To reproduce the complete repository validation:
+
+```bash
+npm run check
+```
+
+Expected integration result: 13 passing tests.
+
+Expected repository-wide result at the evaluated source revision:
+190 passing TypeScript tests across 22 test files.
+
+The shared package build prerequisites for clean installations are
+documented in `tests/integration/README.md`.
+
+### 15.12 Defect Status
+
+No new defects were detected by the 13 cross-package integration tests.
+
+The existing BUG-001 through BUG-006 findings remain open pending
+implementation remediation and targeted regression testing.
+
+The passing main-branch integration suite does not invalidate the
+previously reproduced failures in the separate integrated stereo
+implementation.
+
+No existing diagnostic assertions were weakened, and no production
+implementation fixes were introduced during this testing phase.
+
+### 15.13 Remaining Integration and Acceptance Testing
+
+The current integration suite establishes the available local streaming
+vertical path but does not complete the full Phase 1 application lifecycle.
+
+Remaining work includes:
+
+1. Integrate session creation with the durable repository.
+2. Validate final-result persistence and acknowledgments.
+3. Validate duplicate and conflicting final-result handling.
+4. Validate stale and unissued epoch rejection during persistence.
+5. Validate persistence failure and recovery.
+6. Validate session completion and pending-final handling.
+7. Validate durable session history and transcript retrieval.
+8. Validate session deletion and subsequent access denial.
+9. Extend ownership isolation testing across all lifecycle endpoints.
+10. Rerun integrated stereo regression and diagnostic tests following
+    defect remediation.
+11. Execute authorized AWS smoke and two-user acceptance testing.
+12. Measure integrated transcription accuracy, channel attribution,
+    latency, and persistence acknowledgment performance.
+13. Execute authorized extended-duration and reconnect reliability
+    testing.
+
+The standalone LibriSpeech and AMI accuracy evaluations remain useful
+baseline measurements but do not substitute for integrated application
+performance evaluation.
+
+### 15.14 Conclusion
+
+The fake-backed cross-package integration testing phase successfully
+established automated coverage across the current frontend API client,
+backend authorization handler, shared contracts, frontend streaming
+adapter, stream client, and EventStream protocol implementation.
+
+All 13 integration tests passed, including authorization, ownership
+isolation, provider failure, repository failure, connection recovery,
+privacy, and stale-message scenarios.
+
+The complete repository validation passed with 190 automated TypeScript
+tests across 22 test files, together with successful formatting, linting,
+type checking, and production compilation.
+
+No new defects were detected within the evaluated scope.
+
+The integration suite provides a reproducible foundation for expanding
+testing into durable persistence, the complete session lifecycle, and
+authorized AWS acceptance.
+
+Full application acceptance remains pending implementation completion,
+stereo defect remediation, durable persistence validation, and integrated
+performance testing.

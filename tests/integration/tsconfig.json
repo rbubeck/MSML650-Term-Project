@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"],
+    "paths": {
+      "@live-transcription/contracts": ["../../packages/contracts/src/index.ts"],
+      "@live-transcription/stream-client": ["../../packages/stream-client/src/index.ts"]
+    }
+  },
+  "include": ["**/*.test.ts"]
+}

@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "tsc --project tsconfig.json && npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc --project tsconfig.json && tsc --project tests/integration/tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

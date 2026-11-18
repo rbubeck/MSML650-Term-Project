@@ -33,9 +33,10 @@ import {
 } from 'lucide-react';
 import { cognitoAuth } from './auth/cognito';
 import type { AccountView } from './auth/cognito';
-import { config, hasCloudConfig } from './config';
-import { MeetingSessionCapture, visualLevel } from './audio/meetingCapture';
-import type { MeetingCaptureMode } from './audio/meetingCapture';
+import { config, hasCloudConfig, hasAuthConfig } from './config';
+import { visualLevel } from './audio/sourceCapture';
+import { SeparateStreamAdapter } from './services/separateStreamAdapter';
+import { createFakeTranscribeTransport } from './services/fakeTranscribeSocket';
 import { formatClock } from './lib/viewModels';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
 import { TranscriptParagraphs } from './components/TranscriptParagraphs';
@@ -97,7 +98,7 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
     } catch (error: unknown) {
       const errorName = error instanceof Error ? error.name : 'UnknownError';
 
-      setError(`Cognito sign-up failed: ${errorName}`);
+      setError(`Cognito request failed: ${errorName}. Check your network and Cognito setup.`);
     } finally {
       setBusy(false);
     }
@@ -267,12 +268,14 @@ function EmptyTranscript() {
 
 export function App() {
   const [account, setAccount] = useState<AccountView | null>(null);
-  const [checkingSession, setCheckingSession] = useState(config.mode === 'aws' && hasCloudConfig);
+  const [checkingSession, setCheckingSession] = useState(config.mode === 'aws' && hasAuthConfig);
   const [page, setPage] = useState<Page>('studio');
   const [query, setQuery] = useState('');
   const storeRef = useRef(new MockSessionStore());
   const [version, setVersion] = useState(0);
-  const [selectedId, setSelectedId] = useState('demo-architecture');
+  const [selectedId, setSelectedId] = useState(
+    config.mode === 'aws' ? config.liveSessionId : 'demo-architecture',
+  );
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [toast, setToast] = useState('');
@@ -280,16 +283,17 @@ export function App() {
   const [micError, setMicError] = useState('');
   const [micChunks, setMicChunks] = useState(0);
   const [micNativeRate, setMicNativeRate] = useState(0);
-  const [captureMode, setCaptureMode] = useState<MeetingCaptureMode>('both');
+  const [useMicrophone, setUseMicrophone] = useState(true);
+  const [useSystemAudio, setUseSystemAudio] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
   const [micInputLevel, setMicInputLevel] = useState(0);
   const [meetingInputLevel, setMeetingInputLevel] = useState(0);
   const micDisplayLevel = visualLevel(micInputLevel);
   const meetingDisplayLevel = visualLevel(meetingInputLevel);
   const mixedDisplayLevel = visualLevel(
-    captureMode === 'both' ? Math.max(micInputLevel, meetingInputLevel) : meetingInputLevel,
+    Math.max(useMicrophone ? micInputLevel : 0, useSystemAudio ? meetingInputLevel : 0),
   );
-  const micRef = useRef<MeetingSessionCapture | null>(null);
+  const micRef = useRef<SeparateStreamAdapter | null>(null);
   const [liveDemoCaptions, setLiveDemoCaptions] = useState<CaptionView[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [apiHealth, setApiHealth] = useState<'unknown' | 'checking' | 'reachable' | 'unavailable'>(
@@ -310,7 +314,7 @@ export function App() {
   const refresh = () => setVersion((current) => current + 1);
 
   useEffect(() => {
-    if (config.mode === 'aws' && hasCloudConfig) {
+    if (config.mode === 'aws' && hasAuthConfig) {
       void cognitoAuth
         .currentUser()
         .then(setAccount)
@@ -376,14 +380,18 @@ export function App() {
     if (micStatus === 'recording') {
       setMicStatus('requesting');
       const active = micRef.current;
-      micRef.current = null;
       try {
         await active?.stop();
+        if (micRef.current === active) micRef.current = null;
         setMicStatus('idle');
-        setToast('Local capture ended. No audio was stored or uploaded.');
+        setToast(
+          config.mode === 'mock'
+            ? 'Local simulated stream stopped. No audio was uploaded or saved.'
+            : 'Live transcription stopped. Final captions are not yet persisted.',
+        );
       } catch {
         setMicStatus('error');
-        setMicError('Unable to stop audio capture cleanly. Close the browser sharing control.');
+        setMicError('Unable to stop transcription cleanly. Please retry.');
       }
       setMicInputLevel(0);
       setMeetingInputLevel(0);
@@ -393,45 +401,109 @@ export function App() {
       setMicError('Confirm participant notification and permission before starting.');
       return;
     }
+    if (!useMicrophone && !useSystemAudio) {
+      setMicError('Select Microphone, System audio, or both.');
+      return;
+    }
+    if (config.mode === 'aws' && !hasCloudConfig) {
+      setMicError(
+        'Set VITE_API_BASE_URL to the deployed API Gateway URL before live transcription.',
+      );
+      return;
+    }
+    if (config.mode === 'aws' && !selectedId) {
+      setMicError(
+        'AWS transcription requires a session owned by your test account. Set VITE_LIVE_SESSION_ID.',
+      );
+      return;
+    }
     setMicStatus('requesting');
     setMicError('');
     setMicChunks(0);
     setMicNativeRate(0);
     setMicInputLevel(0);
     setMeetingInputLevel(0);
-    const capture = new MeetingSessionCapture(
-      captureMode,
-      () => {
-        // PCM is intentionally discarded during local testing.
-        // Person 3's reviewed stream-client adapter will consume it here later.
+    setLiveDemoCaptions([]);
+
+    const adapter = new SeparateStreamAdapter({
+      selection: { microphone: useMicrophone, system: useSystemAudio },
+      stereo: config.mode === 'aws' && useMicrophone && useSystemAudio,
+      requestStereoCapability: async (sessionId) => {
+        const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+        const capability = await api.requestStereoStreamCapability(sessionId);
+        // Fail closed: NEVER send two-channel PCM to a mono signed connection.
+        const signed = new URL(capability.url);
+        if (
+          capability.channels !== 2 ||
+          signed.searchParams.get('number-of-channels') !== '2' ||
+          signed.searchParams.get('enable-channel-identification') !== 'true'
+        ) {
+          throw new Error(
+            'The deployed AWS backend has not enabled stereo channel identification. Ask your teammate to deploy the v5 signer update.',
+          );
+        }
+        return { url: capability.url, streamEpoch: capability.streamEpoch };
       },
-      (status) => {
+      requestCapability:
+        config.mode === 'mock'
+          ? async () => ({
+              url: 'wss://local-fake.invalid/stream-transcription-websocket',
+              streamEpoch: Date.now(),
+            })
+          : async (sessionId) => {
+              const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+              const capability = await api.requestStreamCapability(sessionId);
+              return { url: capability.url, streamEpoch: capability.streamEpoch };
+            },
+      ...(config.mode === 'mock' ? { createTransport: createFakeTranscribeTransport } : {}),
+      onCaptureStatus: (status) => {
         setMicChunks(status.receivedChunks);
         setMicNativeRate(status.sampleRate);
         setMicInputLevel((previous) => Math.max(status.micLevel, previous * 0.35));
         setMeetingInputLevel((previous) => Math.max(status.meetingLevel, previous * 0.35));
       },
-      () => {
-        if (micRef.current !== capture) return;
-        micRef.current = null;
-        setMicStatus('idle');
-        setMicInputLevel(0);
-        setMeetingInputLevel(0);
-        setMicError('Meeting audio sharing ended. Select a source and start again.');
-      },
-    );
-    micRef.current = capture;
+    });
+    micRef.current = adapter;
     try {
-      // No await before this call: the browser picker requires a click gesture.
-      await capture.start();
-      if (micRef.current === capture) setMicStatus('recording');
+      // adapter.start() begins getDisplayMedia before its first await.
+      await adapter.start(selectedId, {
+        onCaption: (event) => {
+          if (micRef.current !== adapter) return;
+          const caption: CaptionView = {
+            id: event.source + ':' + String(event.streamEpoch) + ':' + event.resultId,
+            speaker: event.source === 'microphone' ? 'You' : 'Meeting audio',
+            timestampMs: event.startMs,
+            text: event.text,
+            phase: event.phase,
+          };
+          setLiveDemoCaptions((current) => [
+            ...current.filter((item) => item.id !== caption.id),
+            caption,
+          ]);
+        },
+        onFailure: (message) => {
+          if (micRef.current !== adapter) return;
+          micRef.current = null;
+          setMicError(message);
+          setMicStatus('error');
+        },
+        onDisconnected: () => {
+          if (micRef.current !== adapter) return;
+          micRef.current = null;
+          setMicError(
+            'Audio sharing or the transcription stream ended. Select your sources and start again.',
+          );
+          setMicStatus('error');
+        },
+      });
+      if (micRef.current === adapter) setMicStatus('recording');
     } catch (error) {
-      if (micRef.current !== capture) return;
+      if (micRef.current !== adapter) return;
       micRef.current = null;
-      await capture.stop();
+      await adapter.stop().catch(() => undefined);
       setMicInputLevel(0);
       setMeetingInputLevel(0);
-      setMicError(error instanceof Error ? error.message : 'Unable to start audio capture.');
+      setMicError(error instanceof Error ? error.message : 'Unable to start transcription.');
       setMicStatus('error');
     }
   }
@@ -503,14 +575,14 @@ export function App() {
     setAccount(null);
   }
 
-  if (config.mode === 'aws' && !hasCloudConfig)
+  if (config.mode === 'aws' && !hasAuthConfig)
     return (
       <div className="config-page">
         <Cloud size={42} />
         <h1>Cloud integration is not configured</h1>
         <p>
-          Set the public Cognito identifiers and deployed API URL in <code>frontend/.env</code>{' '}
-          before starting AWS mode.
+          Set the public Cognito identifiers in <code>frontend/.env.local</code> before creating an
+          account. An API Gateway URL is required later for live transcription.
         </p>
         <pre>
           VITE_APP_MODE=aws{'\n'}VITE_API_BASE_URL=https://…{'\n'}VITE_COGNITO_USER_POOL_ID=…{'\n'}
@@ -763,8 +835,8 @@ export function App() {
                   <div className="eyebrow accent">LIVE STUDIO</div>
                   <h1>Capture the conversation</h1>
                   <p>
-                    Review real microphone PCM preparation and clearly distinguished caption/save
-                    states.
+                    Select microphone, system audio, or both, and view clearly distinguished live
+                    caption states.
                   </p>
                 </div>
                 <span className="pill">
@@ -778,7 +850,7 @@ export function App() {
                       <span
                         className={`status-dot ${micStatus === 'recording' ? 'recording' : ''}`}
                       />
-                      {micStatus === 'recording' ? 'Meeting audio capture active' : 'Capture ready'}
+                      {micStatus === 'recording' ? 'Live transcription active' : 'Capture ready'}
                     </span>
                     <span className="mode-label">16 kHz • Mono • PCM 16-bit</span>
                   </div>
@@ -787,52 +859,50 @@ export function App() {
                     <p className="capture-picker-subtitle">
                       Choose which audio to capture for transcription.
                     </p>
-                    <div
-                      className="capture-mode-options"
-                      role="radiogroup"
-                      aria-label="Audio sources"
-                    >
+                    <div className="capture-mode-options" role="group" aria-label="Audio sources">
                       <label
-                        className={`capture-mode-option ${captureMode === 'both' ? 'selected' : ''}`}
+                        className={
+                          useMicrophone ? 'capture-mode-option selected' : 'capture-mode-option'
+                        }
                       >
                         <input
-                          type="radio"
-                          name="meeting-capture-mode"
-                          value="both"
-                          checked={captureMode === 'both'}
-                          disabled={micStatus !== 'idle' && micStatus !== 'error'}
-                          onChange={() => setCaptureMode('both')}
+                          type="checkbox"
+                          checked={useMicrophone}
+                          disabled={micStatus === 'requesting' || micStatus === 'recording'}
+                          onChange={(event) => setUseMicrophone(event.target.checked)}
                         />
                         <span className="capture-mode-copy">
-                          <strong>Microphone + meeting audio</strong>
-                          <small>
-                            Capture your voice and everyone speaking through the meeting
-                          </small>
+                          <strong>Microphone</strong>
+                          <small>Capture your voice using the selected microphone</small>
                         </span>
                       </label>
                       <label
-                        className={`capture-mode-option ${captureMode === 'meeting' ? 'selected' : ''}`}
+                        className={
+                          useSystemAudio ? 'capture-mode-option selected' : 'capture-mode-option'
+                        }
                       >
                         <input
-                          type="radio"
-                          name="meeting-capture-mode"
-                          value="meeting"
-                          checked={captureMode === 'meeting'}
-                          disabled={micStatus !== 'idle' && micStatus !== 'error'}
-                          onChange={() => setCaptureMode('meeting')}
+                          type="checkbox"
+                          checked={useSystemAudio}
+                          disabled={micStatus === 'requesting' || micStatus === 'recording'}
+                          onChange={(event) => setUseSystemAudio(event.target.checked)}
                         />
                         <span className="capture-mode-copy">
-                          <strong>Meeting audio only</strong>
-                          <small>Capture sound from a shared tab, window, or screen</small>
+                          <strong>Meeting &amp; computer audio</strong>
+                          <small>
+                            Transcribe meetings, videos, or other sound shared from a tab or screen
+                          </small>
                         </span>
                       </label>
                     </div>
                     <div className="capture-source-explainer" role="note">
                       <AudioLines size={17} aria-hidden="true" />
                       <span>
-                        Your browser will ask you to select a meeting tab, window, or screen.{' '}
-                        <strong>Turn on Share audio.</strong> If no audio is shared, capture won't
-                        start.
+                        System audio uses the browser's sharing picker. If selected,{' '}
+                        <strong>enable Share audio</strong> and choose a source that exposes audio.
+                        Microphone-only capture does not require screen sharing. When both are
+                        enabled, their audio is mixed into one transcript, so individual words
+                        cannot be reliably assigned to Mic or System.
                       </span>
                     </div>
                     <label className="capture-consent">
@@ -864,7 +934,7 @@ export function App() {
                     </div>
                   </div>
                   <div className="capture-levels" aria-label="Live capture levels">
-                    {captureMode === 'both' && (
+                    {useMicrophone && (
                       <div
                         className="capture-source-level"
                         role="meter"
@@ -873,32 +943,36 @@ export function App() {
                         aria-valuemax={100}
                         aria-valuenow={Math.round(micDisplayLevel * 100)}
                       >
-                        <span>Mic input</span>
+                        <span>Your microphone</span>
                         <span className="capture-level-track" aria-hidden="true">
                           <span style={{ width: `${Math.round(micDisplayLevel * 100)}%` }} />
                         </span>
                         <strong>{Math.round(micDisplayLevel * 100)}%</strong>
                       </div>
                     )}
-                    <div
-                      className="capture-source-level"
-                      role="meter"
-                      aria-label="Meeting audio input level"
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={Math.round(meetingDisplayLevel * 100)}
-                    >
-                      <span>Meeting audio</span>
-                      <span className="capture-level-track" aria-hidden="true">
-                        <span style={{ width: `${Math.round(meetingDisplayLevel * 100)}%` }} />
-                      </span>
-                      <strong>{Math.round(meetingDisplayLevel * 100)}%</strong>
-                    </div>
+                    {useSystemAudio && (
+                      <div
+                        className="capture-source-level"
+                        role="meter"
+                        aria-label="Meeting and computer audio input level"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(meetingDisplayLevel * 100)}
+                      >
+                        <span>Meeting audio</span>
+                        <span className="capture-level-track" aria-hidden="true">
+                          <span style={{ width: `${Math.round(meetingDisplayLevel * 100)}%` }} />
+                        </span>
+                        <strong>{Math.round(meetingDisplayLevel * 100)}%</strong>
+                      </div>
+                    )}
                   </div>
                   <p className="capture-status-copy">
                     {micStatus === 'recording'
-                      ? 'Local audio capture is active. PCM is being prepared in memory only; Amazon Transcribe is not connected yet.'
-                      : 'Test your selected audio sources locally. CloudScribe does not upload or save raw audio in this mode.'}
+                      ? config.mode === 'mock'
+                        ? 'Local audio is streaming through the simulated provider. Captions are not real speech recognition.'
+                        : 'Audio is being streamed to Amazon Transcribe. Finals are not saved to the session API yet.'
+                      : 'Choose microphone, system audio, or both to start live transcription.'}
                   </p>
                   <div className="live-stats">
                     <div>
@@ -923,7 +997,9 @@ export function App() {
                         : 'primary recording-button'
                     }
                     disabled={
-                      micStatus === 'requesting' || (micStatus !== 'recording' && !consentGiven)
+                      micStatus === 'requesting' ||
+                      (micStatus !== 'recording' &&
+                        (!consentGiven || (!useMicrophone && !useSystemAudio)))
                     }
                     onClick={() => void toggleMicrophone()}
                   >
@@ -936,7 +1012,9 @@ export function App() {
                         <Mic size={18} />{' '}
                         {micStatus === 'requesting'
                           ? 'Requesting permissions…'
-                          : 'Start local capture'}
+                          : config.mode === 'mock'
+                            ? 'Start simulated transcription'
+                            : 'Start live transcription'}
                       </>
                     )}
                   </button>
@@ -955,16 +1033,19 @@ export function App() {
                 <section className="panel captions-panel">
                   <div className="panel-top">
                     <div>
-                      <strong>Live captions</strong>
-                      <p>Reviewable transcript states</p>
+                      <strong>Live transcript</strong>
+                      <p>Timestamped conversation timeline</p>
                     </div>
                     <div className="live-pill">
-                      <span /> {config.mode === 'mock' ? 'Simulated' : 'Not connected'}
+                      <span /> {config.mode === 'mock' ? 'Simulated stream' : 'AWS transcription'}
                     </div>
                   </div>
                   <div className="captions-scroller" aria-live="polite">
                     {selectedDisplay.length ? (
-                      <TranscriptParagraphs captions={selectedDisplay} />
+                      <TranscriptParagraphs
+                        captions={selectedDisplay}
+                        simulated={config.mode === 'mock'}
+                      />
                     ) : (
                       <EmptyTranscript />
                     )}
@@ -989,9 +1070,9 @@ export function App() {
                       <button
                         className="secondary small"
                         disabled
-                        title="Pending Person 3 stream client and accepted contracts"
+                        title="Real captions arrive when the AWS stream is active"
                       >
-                        <WifiOff size={15} /> Streaming integration pending
+                        <WifiOff size={15} /> Live captions appear during capture
                       </button>
                     )}
                   </div>
@@ -1175,10 +1256,10 @@ export function App() {
                   </div>
                   <h3>Streaming</h3>
                   <p>
-                    AudioWorklet is prepared. EventStream and signed connections belong exclusively
-                    to the reviewed stream-client package.
+                    AudioWorklet forwards selected audio through the shared EventStream client. AWS
+                    mode uses a signed capability from the session API.
                   </p>
-                  <span className="tiny-status warning">INTEGRATION PENDING</span>
+                  <span className="tiny-status">CAPTURE-TO-STREAM CONNECTED</span>
                 </section>
                 <section className="panel setting-card">
                   <div className="setting-icon">

@@ -7,13 +7,13 @@ import {
   signOut,
   signUp,
 } from 'aws-amplify/auth';
-import { config, hasCloudConfig } from '../config';
+import { config, hasAuthConfig } from '../config';
 
 let configured = false;
 
 function configure(): void {
   if (configured) return;
-  if (!hasCloudConfig) throw new Error('Missing Cognito configuration.');
+  if (!hasAuthConfig) throw new Error('Missing Cognito configuration.');
   Amplify.configure({
     Auth: {
       Cognito: {

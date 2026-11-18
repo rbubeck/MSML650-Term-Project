@@ -61,10 +61,12 @@ Resource identifiers and user identity values are intentionally absent from trac
 
 ## Start here
 
-1. Read [AGENTS.md](AGENTS.md), [direction_option_a.md](direction_option_a.md), your area README, [ARCHITECTURE.md](ARCHITECTURE.md), [API_CONTRACTS.md](API_CONTRACTS.md), and accepted ADRs.
-2. Implement only the Phase 1 interfaces in [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md).
-3. Use shared Zod schemas; do not create component-local session or error models.
-4. Run `npm run check` before TypeScript handoff. Normal tests must not call AWS.
-5. Do not create shared AWS resources or run the real one-hour test without explicit approval and a bounded plan.
+1. Open the [team coordination hub](docs/team/START_HERE.md) and your linked role brief.
+2. Read [AGENTS.md](AGENTS.md), [direction_option_a.md](direction_option_a.md), your area README, [ARCHITECTURE.md](ARCHITECTURE.md), [API_CONTRACTS.md](API_CONTRACTS.md), and accepted ADRs.
+3. Check [current status](docs/team/CURRENT_STATUS.md) and [cross-owner dependencies](docs/team/DEPENDENCIES.md) before changing a shared interface.
+4. Implement only the Phase 1 interfaces in [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md).
+5. Use shared Zod schemas; do not create component-local session or error models.
+6. Run `npm run check` before TypeScript handoff. Normal tests must not call AWS.
+7. Follow the [AWS team access](docs/runbooks/aws-team-access.md) and [development testing](docs/runbooks/aws-development-testing.md) runbooks. Do not create shared resources or run the real one-hour test without explicit approval and a bounded plan.
 
 Documentation and mocks are not runtime evidence. The dated checkpoint above is evidence only for the explicitly listed development smoke path.

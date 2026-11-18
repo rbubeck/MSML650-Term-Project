@@ -1,0 +1,1651 @@
+diff --git a/backend/api/src/aws/transcribe-signer.test.ts b/backend/api/src/aws/transcribe-signer.test.ts
+index ebfad6b..ce6a212 100644
+--- a/backend/api/src/aws/transcribe-signer.test.ts
++++ b/backend/api/src/aws/transcribe-signer.test.ts
+@@ -47,6 +47,7 @@ interface OracleInput {
+   readonly expiresIn: number;
+   readonly signingDate: Date;
+   readonly sessionToken: string | undefined;
++  readonly channels?: 1 | 2;
+ }
+ 
+ /**
+@@ -70,6 +71,10 @@ function oracleSignature(input: OracleInput): { signature: string; signingKeyHex
+     'sample-rate': '16000',
+   };
+   if (input.sessionToken !== undefined) params['X-Amz-Security-Token'] = input.sessionToken;
++  if (input.channels === 2) {
++    params['enable-channel-identification'] = 'true';
++    params['number-of-channels'] = '2';
++  }
+ 
+   const canonicalQuery = Object.keys(params)
+     .sort()
+@@ -164,6 +169,47 @@ describe('createTranscribeUrlSigner', () => {
+     expect(params.get('sample-rate')).toBe('16000');
+   });
+ 
++  it('includes channel identification parameters for stereo requests', async () => {
++    const url = new URL(
++      await createTranscribeUrlSigner(credentials).sign({
++        ...baseInput,
++        channels: 2,
++      }),
++    );
++
++    expect(url.searchParams.get('enable-channel-identification')).toBe('true');
++    expect(url.searchParams.get('number-of-channels')).toBe('2');
++    expect(url.searchParams.get('sample-rate')).toBe('16000');
++    expect(url.searchParams.get('media-encoding')).toBe('pcm');
++  });
++
++  it('omits stereo channel parameters for mono requests', async () => {
++    const url = new URL(await createTranscribeUrlSigner(credentials).sign(baseInput));
++
++    expect(url.searchParams.has('enable-channel-identification')).toBe(false);
++    expect(url.searchParams.has('number-of-channels')).toBe(false);
++  });
++
++  it('matches the independent signature oracle for stereo requests', async () => {
++    const url = new URL(
++      await createTranscribeUrlSigner(credentials).sign({
++        ...baseInput,
++        channels: 2,
++      }),
++    );
++
++    const expected = oracleSignature({
++      region: 'us-east-1',
++      languageCode: 'en-US',
++      expiresIn: 60,
++      signingDate: SIGNING_DATE,
++      sessionToken: SESSION_TOKEN,
++      channels: 2,
++    });
++
++    expect(url.searchParams.get('X-Amz-Signature')).toBe(expected.signature);
++  });
++
+   it('percent-encodes the session token so the URL parses back to the exact token', async () => {
+     const raw = await createTranscribeUrlSigner(credentials).sign(baseInput);
+     expect(raw).not.toContain(SESSION_TOKEN);
+diff --git a/frontend/src/audio/stereo-pcm-worklet.test.ts b/frontend/src/audio/stereo-pcm-worklet.test.ts
+new file mode 100644
+index 0000000..551a595
+--- /dev/null
++++ b/frontend/src/audio/stereo-pcm-worklet.test.ts
+@@ -0,0 +1,268 @@
++import { readFileSync } from 'node:fs';
++import { resolve } from 'node:path';
++import { runInNewContext } from 'node:vm';
++import { describe, expect, it } from 'vitest';
++
++const TARGET_RATE = 16_000;
++const CHUNK_FRAMES = 1_600;
++const BYTES_PER_FRAME = 4;
++const CHUNK_BYTES = CHUNK_FRAMES * BYTES_PER_FRAME;
++
++type Chunk = {
++  type: 'chunk';
++  pcm: ArrayBuffer;
++  sequence: number;
++  startSample: number;
++  validSamples: number;
++  final: boolean;
++};
++
++type Output = Chunk | { type: 'flushed' };
++
++type Processor = {
++  port: {
++    onmessage: (message: { data: { type: string } }) => void;
++  };
++  process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean;
++};
++
++function makeProcessor(rate: number) {
++  const chunks: Chunk[] = [];
++  const messages: Output[] = [];
++  let processorConstructor: unknown;
++
++  class FakeBase {
++    port = {
++      onmessage: () => {},
++      postMessage: (payload: Output) => {
++        messages.push(payload);
++        if (payload.type === 'chunk') chunks.push(payload);
++      },
++    };
++  }
++
++  const code = readFileSync(
++    resolve(process.cwd(), 'frontend/public/worklets/stereo-pcm-processor.js'),
++    'utf8',
++  );
++
++  runInNewContext(code, {
++    AudioWorkletProcessor: FakeBase,
++    sampleRate: rate,
++    registerProcessor: (_name: string, ctor: unknown) => {
++      processorConstructor = ctor;
++    },
++    ArrayBuffer,
++    DataView,
++    Float32Array,
++    Math,
++    Number,
++  });
++
++  if (typeof processorConstructor !== 'function') {
++    throw new Error('Stereo AudioWorklet failed to register');
++  }
++
++  const Constructor = processorConstructor as new (options: {
++    processorOptions: object;
++  }) => Processor;
++
++  const processor = new Constructor({
++    processorOptions: {
++      targetRate: TARGET_RATE,
++      chunkFrames: CHUNK_FRAMES,
++    },
++  });
++
++  return {
++    chunks,
++    messages,
++
++    feed: (left: Float32Array, right?: Float32Array) => {
++      for (let i = 0; i < left.length; i += 128) {
++        const channels = [left.slice(i, i + 128)];
++
++        if (right) {
++          channels.push(right.slice(i, i + 128));
++        }
++
++        processor.process([channels], [[]]);
++      }
++    },
++
++    process: (inputs: Float32Array[][], outputs: Float32Array[][]) =>
++      processor.process(inputs, outputs),
++
++    end: () =>
++      processor.port.onmessage({
++        data: { type: 'flush' },
++      }),
++  };
++}
++
++describe('Stereo AudioWorklet 16 kHz PCM output', () => {
++  for (const sourceRate of [44_100, 48_000]) {
++    it(`resamples ${sourceRate} Hz into ten aligned stereo chunks per second`, () => {
++      const processor = makeProcessor(sourceRate);
++
++      processor.feed(
++        new Float32Array(sourceRate).fill(0.5),
++        new Float32Array(sourceRate).fill(-0.5),
++      );
++
++      processor.end();
++
++      expect(processor.chunks).toHaveLength(10);
++
++      processor.chunks.forEach((chunk, index) => {
++        expect(chunk.pcm.byteLength).toBe(CHUNK_BYTES);
++        expect(chunk.sequence).toBe(index);
++        expect(chunk.startSample).toBe(index * CHUNK_FRAMES);
++        expect(chunk.validSamples).toBe(CHUNK_FRAMES);
++        expect(chunk.final).toBe(false);
++
++        const view = new DataView(chunk.pcm);
++
++        expect(view.getInt16(0, true)).toBe(16384);
++        expect(view.getInt16(2, true)).toBe(-16384);
++      });
++    });
++  }
++
++  it('interleaves microphone and system audio in little-endian PCM order', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(Float32Array.from([1, 0.5, -1]), Float32Array.from([-1, -0.5, 1]));
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(1);
++
++    const view = new DataView(processor.chunks[0]!.pcm);
++
++    expect(view.byteLength).toBe(12);
++    expect(view.getInt16(0, true)).toBe(32767);
++    expect(view.getInt16(2, true)).toBe(-32768);
++    expect(view.getInt16(4, true)).toBe(16384);
++    expect(view.getInt16(6, true)).toBe(-16384);
++    expect(view.getInt16(8, true)).toBe(-32768);
++    expect(view.getInt16(10, true)).toBe(32767);
++  });
++
++  it('clamps out-of-range samples independently for each channel', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(Float32Array.from([3, -3]), Float32Array.from([-2, 2]));
++
++    processor.end();
++
++    const view = new DataView(processor.chunks[0]!.pcm);
++
++    expect(view.getInt16(0, true)).toBe(32767);
++    expect(view.getInt16(2, true)).toBe(-32768);
++    expect(view.getInt16(4, true)).toBe(-32768);
++    expect(view.getInt16(6, true)).toBe(32767);
++  });
++
++  it('substitutes silence when the system audio channel is missing', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(new Float32Array(160).fill(0.5));
++    processor.end();
++
++    const chunk = processor.chunks[0]!;
++    const view = new DataView(chunk.pcm);
++
++    expect(chunk.validSamples).toBe(160);
++
++    for (let i = 0; i < 160; i++) {
++      expect(view.getInt16(i * 4, true)).toBe(16384);
++      expect(view.getInt16(i * 4 + 2, true)).toBe(0);
++    }
++  });
++
++  it('flushes a partial final chunk without zero-padding', () => {
++    const processor = makeProcessor(48_000);
++
++    processor.feed(new Float32Array(480).fill(0.5), new Float32Array(480).fill(-0.5));
++
++    expect(processor.chunks).toHaveLength(0);
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(1);
++
++    const chunk = processor.chunks[0]!;
++
++    expect(chunk.validSamples).toBe(160);
++    expect(chunk.pcm.byteLength).toBe(640);
++    expect(chunk.sequence).toBe(0);
++    expect(chunk.startSample).toBe(0);
++    expect(chunk.final).toBe(true);
++    expect(processor.messages.map((message) => message.type)).toEqual(['chunk', 'flushed']);
++  });
++
++  it('preserves sequence numbers and frame offsets across full and partial chunks', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(new Float32Array(1760).fill(0.5), new Float32Array(1760).fill(-0.5));
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(2);
++
++    expect(processor.chunks[0]).toMatchObject({
++      sequence: 0,
++      startSample: 0,
++      validSamples: 1600,
++      final: false,
++    });
++
++    expect(processor.chunks[1]).toMatchObject({
++      sequence: 1,
++      startSample: 1600,
++      validSamples: 160,
++      final: true,
++    });
++
++    expect(processor.chunks[0]!.pcm.byteLength).toBe(6400);
++    expect(processor.chunks[1]!.pcm.byteLength).toBe(640);
++  });
++
++  it('acknowledges an empty flush without emitting an empty audio chunk', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.end();
++
++    expect(processor.chunks).toHaveLength(0);
++    expect(processor.messages).toEqual([{ type: 'flushed' }]);
++  });
++
++  it('does not emit additional audio after flushing', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    processor.feed(new Float32Array(160).fill(0.5), new Float32Array(160).fill(-0.5));
++
++    processor.end();
++
++    processor.feed(new Float32Array(3200).fill(1), new Float32Array(3200).fill(-1));
++
++    expect(processor.chunks).toHaveLength(1);
++  });
++
++  it('silences audio monitoring output', () => {
++    const processor = makeProcessor(TARGET_RATE);
++
++    const leftOutput = new Float32Array(128).fill(1);
++    const rightOutput = new Float32Array(128).fill(-1);
++
++    processor.process(
++      [[new Float32Array(128).fill(0.5), new Float32Array(128).fill(-0.5)]],
++      [[leftOutput, rightOutput]],
++    );
++
++    expect(Array.from(leftOutput)).toEqual(Array(128).fill(0));
++
++    expect(Array.from(rightOutput)).toEqual(Array(128).fill(0));
++  });
++});
+diff --git a/frontend/src/audio/stereoSourceCapture.test.ts b/frontend/src/audio/stereoSourceCapture.test.ts
+new file mode 100644
+index 0000000..c2c9cb3
+--- /dev/null
++++ b/frontend/src/audio/stereoSourceCapture.test.ts
+@@ -0,0 +1,721 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { StereoSourceCapture } from './stereoSourceCapture';
++
++function fakeTrack(readyState = 'live') {
++  return {
++    readyState,
++    stop: vi.fn(),
++    addEventListener: vi.fn(),
++    removeEventListener: vi.fn(),
++  };
++}
++
++function fakeStream(audioCount = 1, videoCount = 0) {
++  const audio = Array.from({ length: audioCount }, () => fakeTrack());
++  const video = Array.from({ length: videoCount }, () => fakeTrack());
++
++  return {
++    getAudioTracks: () => audio,
++    getVideoTracks: () => video,
++    getTracks: () => [...audio, ...video],
++    audio,
++    video,
++  };
++}
++
++function deferred<T>() {
++  let resolve!: (value: T) => void;
++
++  const promise = new Promise<T>((done) => {
++    resolve = done;
++  });
++
++  return { promise, resolve };
++}
++
++function setup(display = fakeStream(1, 1), mic = fakeStream()) {
++  const getDisplayMedia = vi.fn().mockResolvedValue(display);
++  const getUserMedia = vi.fn().mockResolvedValue(mic);
++
++  vi.stubGlobal('window', {
++    AudioWorkletNode: class {},
++  });
++
++  vi.stubGlobal('navigator', {
++    mediaDevices: {
++      getDisplayMedia,
++      getUserMedia,
++    },
++  });
++
++  const onChunk = vi.fn();
++  const onStatus = vi.fn();
++  const onEnded = vi.fn();
++
++  const capture = new StereoSourceCapture(onChunk, onStatus, onEnded);
++
++  return {
++    capture,
++    display,
++    mic,
++    getDisplayMedia,
++    getUserMedia,
++    onChunk,
++    onStatus,
++    onEnded,
++  };
++}
++
++describe('stereo audio capture acquisition and cleanup', () => {
++  afterEach(() => {
++    vi.unstubAllGlobals();
++  });
++
++  it('requests display permission before microphone permission', async () => {
++    const test = setup();
++    const pendingDisplay = deferred<typeof test.display>();
++
++    test.getDisplayMedia.mockReturnValueOnce(pendingDisplay.promise);
++
++    const acquisition = test.capture.acquire();
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    pendingDisplay.resolve(test.display);
++
++    await acquisition;
++
++    expect(test.getUserMedia).toHaveBeenCalledOnce();
++
++    expect(test.getDisplayMedia).toHaveBeenCalledWith({
++      video: true,
++      audio: true,
++      systemAudio: 'include',
++    });
++
++    expect(test.getUserMedia).toHaveBeenCalledWith({
++      audio: {
++        channelCount: 1,
++        echoCancellation: true,
++        noiseSuppression: true,
++      },
++    });
++
++    await test.capture.stop();
++  });
++
++  it('rejects unsupported browsers without requesting permissions', async () => {
++    const test = setup();
++
++    vi.stubGlobal('window', {});
++
++    await expect(test.capture.acquire()).rejects.toThrow(
++      /This browser cannot capture both audio sources/,
++    );
++
++    expect(test.getDisplayMedia).not.toHaveBeenCalled();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++  });
++
++  it('honors a canceled display picker without requesting microphone access', async () => {
++    const test = setup();
++
++    test.getDisplayMedia.mockRejectedValueOnce(new Error('User canceled share dialog'));
++
++    await expect(test.capture.acquire()).rejects.toThrow('User canceled share dialog');
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++    expect(test.onChunk).not.toHaveBeenCalled();
++    expect(test.onEnded).not.toHaveBeenCalled();
++  });
++
++  it('rejects display sharing without audio and releases video tracks', async () => {
++    const test = setup(fakeStream(0, 1));
++
++    await expect(test.capture.acquire()).rejects.toThrow(/No tab audio was shared/);
++
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('rejects display sharing when its audio track has already ended', async () => {
++    const display = fakeStream(1, 1);
++    display.audio[0]!.readyState = 'ended';
++
++    const test = setup(display);
++
++    await expect(test.capture.acquire()).rejects.toThrow(/No tab audio was shared/);
++
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    for (const track of display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases all display tracks when microphone permission is denied', async () => {
++    const test = setup();
++
++    test.getUserMedia.mockRejectedValueOnce(new Error('Microphone permission denied'));
++
++    await expect(test.capture.acquire()).rejects.toThrow('Microphone permission denied');
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).toHaveBeenCalledOnce();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    expect(test.onChunk).not.toHaveBeenCalled();
++    expect(test.onEnded).not.toHaveBeenCalled();
++  });
++
++  it('releases late display tracks when stopped during the display picker', async () => {
++    const test = setup();
++    const pendingDisplay = deferred<typeof test.display>();
++
++    test.getDisplayMedia.mockReturnValueOnce(pendingDisplay.promise);
++
++    const acquisition = test.capture.acquire();
++
++    await test.capture.stop();
++
++    pendingDisplay.resolve(test.display);
++
++    await acquisition;
++
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases late microphone tracks when stopped during microphone permission', async () => {
++    const test = setup();
++    const pendingMic = deferred<typeof test.mic>();
++
++    test.getUserMedia.mockReturnValueOnce(pendingMic.promise);
++
++    const acquisition = test.capture.acquire();
++
++    await vi.waitFor(() => {
++      expect(test.getUserMedia).toHaveBeenCalledOnce();
++    });
++
++    await test.capture.stop();
++
++    for (const track of test.display.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    pendingMic.resolve(test.mic);
++
++    await acquisition;
++
++    for (const track of test.mic.getTracks()) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    expect(test.onChunk).not.toHaveBeenCalled();
++  });
++
++  it('registers and removes termination listeners for both sources', async () => {
++    const test = setup();
++
++    await test.capture.acquire();
++
++    const tracks = [...test.display.getTracks(), ...test.mic.getTracks()];
++
++    for (const track of tracks) {
++      expect(track.addEventListener).toHaveBeenCalledWith('ended', expect.any(Function));
++    }
++
++    await test.capture.stop();
++
++    for (const track of tracks) {
++      const handler = track.addEventListener.mock.calls[0]?.[1];
++
++      expect(track.removeEventListener).toHaveBeenCalledWith('ended', handler);
++
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases both sources only once across repeated stop requests', async () => {
++    const test = setup();
++
++    await test.capture.acquire();
++
++    await test.capture.stop();
++    await test.capture.stop();
++
++    for (const track of [...test.display.getTracks(), ...test.mic.getTracks()]) {
++      expect(track.stop).toHaveBeenCalledOnce();
++    }
++
++    expect(test.onEnded).not.toHaveBeenCalled();
++  });
++
++  it('rejects processing before both audio inputs are acquired', async () => {
++    const test = setup();
++
++    await expect(test.capture.startProcessing()).rejects.toThrow(
++      /Both audio inputs must be acquired/,
++    );
++
++    expect(test.getDisplayMedia).not.toHaveBeenCalled();
++    expect(test.getUserMedia).not.toHaveBeenCalled();
++  });
++
++  it('prevents a stopped capture instance from being reused', async () => {
++    const test = setup();
++
++    await test.capture.acquire();
++    await test.capture.stop();
++
++    await expect(test.capture.acquire()).rejects.toThrow(/Stereo capture cannot be reused/);
++
++    expect(test.getDisplayMedia).toHaveBeenCalledOnce();
++    expect(test.getUserMedia).toHaveBeenCalledOnce();
++  });
++});
++
++function fakeAudioNode() {
++  return {
++    connect: vi.fn().mockImplementation((destination: unknown) => destination),
++    disconnect: vi.fn(),
++  };
++}
++
++function setupProcessing() {
++  const test = setup();
++
++  const merger = fakeAudioNode();
++  const destination = fakeAudioNode();
++
++  const sources = [fakeAudioNode(), fakeAudioNode()];
++
++  const analysers = [0.25, 0.5].map((level) => ({
++    ...fakeAudioNode(),
++    fftSize: 2048,
++    getFloatTimeDomainData: vi.fn((samples: Float32Array) => {
++      samples.fill(level);
++    }),
++  }));
++
++  const gains = Array.from({ length: 3 }, () => ({
++    ...fakeAudioNode(),
++    gain: { value: 1 },
++  }));
++
++  const port = {
++    onmessage: null as ((event: MessageEvent) => void) | null,
++    postMessage: vi.fn(),
++  };
++
++  const processor = {
++    ...fakeAudioNode(),
++    port,
++  };
++
++  const context = {
++    sampleRate: 48000,
++    destination,
++    audioWorklet: {
++      addModule: vi.fn().mockResolvedValue(undefined),
++    },
++    createChannelMerger: vi.fn().mockReturnValue(merger),
++    createMediaStreamSource: vi
++      .fn()
++      .mockReturnValueOnce(sources[0])
++      .mockReturnValueOnce(sources[1]),
++    createAnalyser: vi.fn().mockReturnValueOnce(analysers[0]).mockReturnValueOnce(analysers[1]),
++    createGain: vi
++      .fn()
++      .mockReturnValueOnce(gains[0])
++      .mockReturnValueOnce(gains[1])
++      .mockReturnValueOnce(gains[2]),
++    resume: vi.fn().mockResolvedValue(undefined),
++    close: vi.fn().mockResolvedValue(undefined),
++  };
++
++  const AudioContextMock = vi.fn(function () {
++    return context;
++  });
++
++  const AudioWorkletNodeMock = vi.fn(function () {
++    return processor;
++  });
++
++  vi.stubGlobal('AudioContext', AudioContextMock);
++  vi.stubGlobal('AudioWorkletNode', AudioWorkletNodeMock);
++
++  port.postMessage.mockImplementation((message: { type: string }) => {
++    if (message.type === 'flush') {
++      port.onmessage?.({
++        data: { type: 'flushed' },
++      } as MessageEvent);
++    }
++  });
++
++  return {
++    ...test,
++    context,
++    merger,
++    sources,
++    analysers,
++    gains,
++    destination,
++    processor,
++    port,
++    AudioContextMock,
++    AudioWorkletNodeMock,
++  };
++}
++
++function expectTracksStopped(test: ReturnType<typeof setupProcessing>) {
++  for (const track of [...test.display.getTracks(), ...test.mic.getTracks()]) {
++    expect(track.stop).toHaveBeenCalledOnce();
++  }
++}
++
++describe('stereo audio processing and resource cleanup', () => {
++  afterEach(() => {
++    vi.useRealTimers();
++    vi.unstubAllGlobals();
++  });
++
++  it('releases both audio sources if worklet initialization fails', async () => {
++    const test = setupProcessing();
++
++    test.context.audioWorklet.addModule.mockRejectedValueOnce(
++      new Error('Worklet initialization failed'),
++    );
++
++    await test.capture.acquire();
++
++    await expect(test.capture.startProcessing()).rejects.toThrow('Worklet initialization failed');
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.AudioWorkletNodeMock).not.toHaveBeenCalled();
++    expect(test.onChunk).not.toHaveBeenCalled();
++  });
++
++  it('routes microphone to channel zero and system audio to channel one', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    expect(test.context.createChannelMerger).toHaveBeenCalledWith(2);
++
++    expect(test.context.createMediaStreamSource).toHaveBeenNthCalledWith(1, test.mic);
++
++    expect(test.context.createMediaStreamSource).toHaveBeenNthCalledWith(2, test.display);
++
++    expect(test.gains[0]!.connect).toHaveBeenCalledWith(test.merger, 0, 0);
++
++    expect(test.gains[1]!.connect).toHaveBeenCalledWith(test.merger, 0, 1);
++
++    expect(test.gains[2]!.gain.value).toBe(0);
++
++    expect(test.AudioWorkletNodeMock).toHaveBeenCalledWith(
++      test.context,
++      'cloudscribe-stereo-pcm',
++      expect.objectContaining({
++        channelCount: 2,
++        channelCountMode: 'explicit',
++        outputChannelCount: [2],
++        processorOptions: {
++          targetRate: 16000,
++          chunkFrames: 1600,
++        },
++      }),
++    );
++
++    await test.capture.stop();
++  });
++
++  it('forwards stereo PCM chunks and independent audio levels', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const pcm = new ArrayBuffer(6400);
++
++    test.port.onmessage?.({
++      data: {
++        type: 'chunk',
++        pcm,
++        sequence: 0,
++        startSample: 0,
++        validSamples: 1600,
++        final: false,
++      },
++    } as MessageEvent);
++
++    expect(test.onChunk).toHaveBeenCalledWith({
++      pcm,
++      sequence: 0,
++      startSample: 0,
++      validSamples: 1600,
++      final: false,
++    });
++
++    expect(test.onStatus).toHaveBeenCalledWith({
++      receivedChunks: 1,
++      sampleRate: 48000,
++      micLevel: 0.25,
++      systemLevel: 0.5,
++    });
++
++    await test.capture.stop();
++  });
++
++  it('flushes pending PCM before releasing audio resources', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const finalPcm = new ArrayBuffer(400);
++
++    test.port.postMessage.mockImplementationOnce(() => {
++      test.port.onmessage?.({
++        data: {
++          type: 'chunk',
++          pcm: finalPcm,
++          sequence: 0,
++          startSample: 0,
++          validSamples: 100,
++          final: true,
++        },
++      } as MessageEvent);
++
++      test.port.onmessage?.({
++        data: { type: 'flushed' },
++      } as MessageEvent);
++    });
++
++    await test.capture.stop();
++
++    expect(test.port.postMessage).toHaveBeenCalledWith({
++      type: 'flush',
++    });
++
++    expect(test.onChunk).toHaveBeenCalledWith({
++      pcm: finalPcm,
++      sequence: 0,
++      startSample: 0,
++      validSamples: 100,
++      final: true,
++    });
++
++    expect(test.onChunk.mock.invocationCallOrder[0]).toBeLessThan(
++      test.mic.audio[0]!.stop.mock.invocationCallOrder[0]!,
++    );
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++
++    for (const node of [test.merger, ...test.sources, ...test.analysers, ...test.gains]) {
++      expect(node.disconnect).toHaveBeenCalledOnce();
++    }
++  });
++
++  it('releases resources even if the worklet never acknowledges flush', async () => {
++    vi.useFakeTimers();
++
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    test.port.postMessage.mockImplementationOnce(() => undefined);
++
++    const stopping = test.capture.stop();
++
++    expect(test.port.postMessage).toHaveBeenCalledWith({
++      type: 'flush',
++    });
++
++    expect(test.context.close).not.toHaveBeenCalled();
++
++    await vi.advanceTimersByTimeAsync(500);
++    await stopping;
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++  });
++
++  it('automatically releases resources when display sharing ends', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const handler = test.display.video[0]!.addEventListener.mock.calls[0]?.[1] as () => void;
++
++    handler();
++
++    await vi.waitFor(() => {
++      expect(test.onEnded).toHaveBeenCalledOnce();
++    });
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++  });
++
++  it('automatically releases resources when the microphone track ends', async () => {
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    const handler = test.mic.audio[0]!.addEventListener.mock.calls[0]?.[1] as () => void;
++
++    handler();
++
++    await vi.waitFor(() => {
++      expect(test.onEnded).toHaveBeenCalledOnce();
++    });
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++  });
++
++  it('releases resources when AudioContext resume fails', async () => {
++    const test = setupProcessing();
++
++    test.context.resume.mockRejectedValueOnce(new Error('AudioContext resume failed'));
++
++    await test.capture.acquire();
++
++    await expect(test.capture.startProcessing()).rejects.toThrow('AudioContext resume failed');
++
++    expectTracksStopped(test);
++    expect(test.context.close).toHaveBeenCalledOnce();
++    expect(test.processor.disconnect).toHaveBeenCalledOnce();
++  });
++});
++
++describe('stereo capture race-condition diagnostics', () => {
++  afterEach(() => {
++    vi.useRealTimers();
++    vi.unstubAllGlobals();
++  });
++
++  it('waits for resource cleanup across concurrent stop requests', async () => {
++    vi.useFakeTimers();
++
++    const test = setupProcessing();
++
++    await test.capture.acquire();
++    await test.capture.startProcessing();
++
++    // Hold all flush acknowledgments until explicitly released.
++    test.port.postMessage.mockImplementation(() => undefined);
++
++    let firstStopResolved = false;
++    let secondStopResolved = false;
++
++    const firstStop = test.capture.stop().then(() => {
++      firstStopResolved = true;
++    });
++
++    const secondStop = test.capture.stop().then(() => {
++      secondStopResolved = true;
++    });
++
++    // Allow pending promise callbacks to execute.
++    await Promise.resolve();
++    await Promise.resolve();
++
++    const firstResolvedBeforeCleanup = firstStopResolved;
++    const secondResolvedBeforeCleanup = secondStopResolved;
++
++    const closedBeforeFlush = test.context.close.mock.calls.length;
++
++    const flushRequests = test.port.postMessage.mock.calls.filter(
++      ([message]) => message.type === 'flush',
++    ).length;
++
++    // Acknowledge the pending flush.
++    test.port.onmessage?.({
++      data: { type: 'flushed' },
++    } as MessageEvent);
++
++    // Allow cleanup to finish even if a concurrent request
++    // overwrote the original flush acknowledgment callback.
++    await vi.advanceTimersByTimeAsync(500);
++
++    await Promise.all([firstStop, secondStop]);
++
++    expect.soft(firstResolvedBeforeCleanup).toBe(false);
++    expect.soft(secondResolvedBeforeCleanup).toBe(false);
++    expect.soft(closedBeforeFlush).toBe(0);
++
++    // Concurrent callers should share one cleanup operation.
++    expect.soft(flushRequests).toBe(1);
++    expect.soft(test.context.close).toHaveBeenCalledOnce();
++    expect.soft(test.processor.disconnect).toHaveBeenCalledOnce();
++
++    expectTracksStopped(test);
++  });
++
++  it('rejects startup when display audio ends during microphone acquisition', async () => {
++    const test = setupProcessing();
++
++    const pendingMic = deferred<typeof test.mic>();
++
++    test.getUserMedia.mockReturnValueOnce(pendingMic.promise);
++
++    const acquisition = test.capture.acquire();
++
++    await vi.waitFor(() => {
++      expect(test.getUserMedia).toHaveBeenCalledOnce();
++    });
++
++    // Simulate the user ending display sharing while
++    // the microphone permission prompt is still open.
++    const displayAudio = test.display.audio[0]!;
++
++    displayAudio.readyState = 'ended';
++
++    const endedHandler = displayAudio.addEventListener.mock.calls.find(
++      (call) => call[0] === 'ended',
++    )?.[1] as (() => void) | undefined;
++
++    endedHandler?.();
++
++    pendingMic.resolve(test.mic);
++
++    let startupSucceeded = false;
++
++    try {
++      await acquisition;
++      await test.capture.startProcessing();
++      startupSucceeded = true;
++    } catch {
++      // Startup should fail because display audio ended.
++    } finally {
++      await test.capture.stop();
++    }
++
++    expectTracksStopped(test);
++
++    expect(startupSucceeded).toBe(false);
++  });
++});
+diff --git a/frontend/src/components/ContinuousTranscript.test.tsx b/frontend/src/components/ContinuousTranscript.test.tsx
+index cfc8200..7781fc4 100644
+--- a/frontend/src/components/ContinuousTranscript.test.tsx
++++ b/frontend/src/components/ContinuousTranscript.test.tsx
+@@ -31,3 +31,76 @@ describe('ContinuousTranscript', () => {
+     expect(markup).not.toContain('System audio</strong>');
+   });
+ });
++
++describe('document-level persistence status diagnostics', () => {
++  it('does not report the document saved when an earlier block failed to save', () => {
++    const markup = renderToStaticMarkup(
++      <ContinuousTranscript
++        captions={[
++          {
++            ...captions[0]!,
++            id: 'failed-result',
++            streamEpoch: 1,
++            phase: 'save-failed',
++          },
++          {
++            ...captions[1]!,
++            id: 'saved-result',
++            streamEpoch: 2,
++            phase: 'save-acknowledged',
++          },
++        ]}
++        active
++      />,
++    );
++
++    expect(markup).toContain('Save failed');
++    expect(markup).not.toContain('>Saved</span>');
++  });
++
++  it('does not report the document saved while an earlier block is awaiting acknowledgment', () => {
++    const markup = renderToStaticMarkup(
++      <ContinuousTranscript
++        captions={[
++          {
++            ...captions[0]!,
++            id: 'pending-result',
++            streamEpoch: 1,
++            phase: 'final-observed',
++          },
++          {
++            ...captions[1]!,
++            id: 'saved-result',
++            streamEpoch: 2,
++            phase: 'save-acknowledged',
++          },
++        ]}
++        active
++      />,
++    );
++
++    expect(markup).not.toContain('>Saved</span>');
++  });
++
++  it('reports saved when all final results across capture periods are acknowledged', () => {
++    const markup = renderToStaticMarkup(
++      <ContinuousTranscript
++        captions={[
++          {
++            ...captions[0]!,
++            streamEpoch: 1,
++            phase: 'save-acknowledged',
++          },
++          {
++            ...captions[1]!,
++            streamEpoch: 2,
++            phase: 'save-acknowledged',
++          },
++        ]}
++        active
++      />,
++    );
++
++    expect(markup).toContain('>Saved</span>');
++  });
++});
+diff --git a/frontend/src/lib/continuousTranscript.test.ts b/frontend/src/lib/continuousTranscript.test.ts
+index e73edc0..85cf1fc 100644
+--- a/frontend/src/lib/continuousTranscript.test.ts
++++ b/frontend/src/lib/continuousTranscript.test.ts
+@@ -50,3 +50,81 @@ describe('continuous transcript formatting', () => {
+     );
+   });
+ });
++
++describe('continuous transcript result lifecycle', () => {
++  it('replaces a partial result with its corresponding final result', () => {
++    const blocks = composeTranscriptBlocks([
++      caption('1', 'working', 0, 1, 'partial'),
++      caption('1', 'working phrase', 0, 1, 'partial'),
++      caption('1', 'working phrase completed.', 0, 1),
++    ]);
++
++    expect(blocks).toHaveLength(1);
++    expect(blocks[0]?.finalText).toBe('Working phrase completed.');
++    expect(blocks[0]?.partialText).toBe('');
++    expect(blocks[0]?.phase).toBe('final-observed');
++  });
++
++  it('does not overwrite finalized text with a late partial revision', () => {
++    const blocks = composeTranscriptBlocks([
++      caption('1', 'completed sentence.', 0, 1),
++      caption('1', 'incomplete', 0, 1, 'partial'),
++    ]);
++
++    expect(blocks[0]?.finalText).toBe('Completed sentence.');
++    expect(blocks[0]?.partialText).toBe('');
++  });
++
++  it('does not duplicate identical final results within one epoch', () => {
++    const final = caption('1', 'completed sentence.', 0, 1);
++
++    const blocks = composeTranscriptBlocks([final, final, final]);
++
++    expect(blocks).toHaveLength(1);
++    expect(blocks[0]?.finalText).toBe('Completed sentence.');
++  });
++
++  it('orders final results by timestamp rather than arrival order', () => {
++    const blocks = composeTranscriptBlocks([
++      caption('3', 'third sentence.', 2_000, 1),
++      caption('1', 'first sentence.', 0, 1),
++      caption('2', 'second sentence.', 1_000, 1),
++    ]);
++
++    expect(blocks[0]?.finalText).toBe('First sentence. second sentence. third sentence.');
++  });
++
++  it('updates persistence status without duplicating finalized text', () => {
++    const blocks = composeTranscriptBlocks([
++      caption('1', 'completed sentence.', 0, 1),
++      caption('1', 'completed sentence.', 0, 1, 'saving'),
++      caption('1', 'completed sentence.', 0, 1, 'save-acknowledged'),
++    ]);
++
++    expect(blocks[0]?.finalText).toBe('Completed sentence.');
++    expect(blocks[0]?.phase).toBe('save-acknowledged');
++  });
++
++  it('does not mark a block saved while a final result is awaiting acknowledgment', () => {
++    const blocks = composeTranscriptBlocks([
++      caption('1', 'saved sentence.', 0, 1, 'save-acknowledged'),
++      caption('2', 'unsaved sentence.', 1_000, 1),
++    ]);
++
++    expect(blocks[0]?.phase).toBe('final-observed');
++  });
++
++  it('prioritizes save failure over saving and acknowledged results', () => {
++    const blocks = composeTranscriptBlocks([
++      caption('1', 'saved sentence.', 0, 1, 'save-acknowledged'),
++      caption('2', 'saving sentence.', 1_000, 1, 'saving'),
++      caption('3', 'failed sentence.', 2_000, 1, 'save-failed'),
++    ]);
++
++    expect(blocks[0]?.phase).toBe('save-failed');
++  });
++
++  it('returns no transcript blocks when there are no captions', () => {
++    expect(composeTranscriptBlocks([])).toEqual([]);
++  });
++});
+diff --git a/frontend/src/services/directStreamAdapter.test.ts b/frontend/src/services/directStreamAdapter.test.ts
+index b87bad3..de435fd 100644
+--- a/frontend/src/services/directStreamAdapter.test.ts
++++ b/frontend/src/services/directStreamAdapter.test.ts
+@@ -179,3 +179,98 @@ describe('capture to EventStream pipeline', () => {
+     expect(steps).toContain('capture-stop');
+   });
+ });
++
++describe('stream shutdown failure diagnostics', () => {
++  it('releases capture resources when provider shutdown fails', async () => {
++    const steps: string[] = [];
++
++    const transport: StreamTransport = {
++      start: async () => {
++        steps.push('transport-start');
++      },
++      sendAudio: () => true,
++      stop: async () => {
++        steps.push('provider-stop');
++        throw new Error('Provider shutdown failed');
++      },
++      cancel: () => {
++        steps.push('provider-cancel');
++      },
++    };
++
++    const adapter = new DirectStreamAdapter({
++      createCapture: fakeCaptureFactory(steps),
++      requestCapability: async () => ({
++        url: 'wss://local-fake.invalid',
++        streamEpoch: 1,
++      }),
++      createTransport: () => transport,
++    });
++
++    await adapter.start('session', {
++      onCaption: vi.fn(),
++      onFailure: vi.fn(),
++      onDisconnected: vi.fn(),
++    });
++
++    await expect(adapter.stop()).rejects.toThrow();
++
++    expect(steps).toContain('capture-pause');
++    expect(steps).toContain('provider-stop');
++
++    // Capture resources must be released even when
++    // graceful provider shutdown fails.
++    expect(steps).toContain('capture-stop');
++  });
++
++  it('releases capture and terminates transport when capture flushing fails', async () => {
++    const steps: string[] = [];
++
++    const transport: StreamTransport = {
++      start: async () => {
++        steps.push('transport-start');
++      },
++      sendAudio: () => true,
++      stop: async () => {
++        steps.push('provider-stop');
++      },
++      cancel: () => {
++        steps.push('provider-cancel');
++      },
++    };
++
++    const baseCaptureFactory = fakeCaptureFactory(steps);
++
++    const adapter = new DirectStreamAdapter({
++      createCapture: (onChunk, onStatus, onSourceEnded) => ({
++        ...baseCaptureFactory(onChunk, onStatus, onSourceEnded),
++        pauseProcessing: async () => {
++          steps.push('capture-pause');
++          throw new Error('Capture flush failed');
++        },
++      }),
++      requestCapability: async () => ({
++        url: 'wss://local-fake.invalid',
++        streamEpoch: 1,
++      }),
++      createTransport: () => transport,
++    });
++
++    await adapter.start('session', {
++      onCaption: vi.fn(),
++      onFailure: vi.fn(),
++      onDisconnected: vi.fn(),
++    });
++
++    await expect(adapter.stop()).rejects.toThrow();
++
++    expect(steps).toContain('capture-pause');
++
++    // Capture cleanup must still occur.
++    expect.soft(steps).toContain('capture-stop');
++
++    // The provider must be stopped or canceled rather
++    // than abandoned when capture flushing fails.
++    expect.soft(steps.includes('provider-stop') || steps.includes('provider-cancel')).toBe(true);
++  });
++});
+diff --git a/frontend/src/services/separateStreamAdapter.stereo.test.ts b/frontend/src/services/separateStreamAdapter.stereo.test.ts
+index 9cb6a1a..0c7d01c 100644
+--- a/frontend/src/services/separateStreamAdapter.stereo.test.ts
++++ b/frontend/src/services/separateStreamAdapter.stereo.test.ts
+@@ -1,5 +1,6 @@
+ import { describe, expect, it, vi } from 'vitest';
+ import { SeparateStreamAdapter } from './separateStreamAdapter';
++import type { StreamClientHandlers } from '@live-transcription/stream-client';
+ 
+ /** No browser or AWS needed: verifies that two labeled results use ONE transport. */
+ describe('single-WebSocket stereo source separation', () => {
+@@ -115,3 +116,297 @@ describe('single-WebSocket stereo source separation', () => {
+     await adapter.stop();
+   });
+ });
++
++type ProviderResult = Parameters<NonNullable<StreamClientHandlers['onFinal']>>[0];
++
++function makeResult(
++  resultId: string,
++  text: string,
++  isPartial: boolean,
++  channelId?: 'ch_0' | 'ch_1',
++  startMs = 0,
++  endMs = 1000,
++): ProviderResult {
++  return {
++    streamEpoch: 17,
++    resultId,
++    text,
++    isPartial,
++    startMs,
++    endMs,
++    ...(channelId === undefined ? {} : { channelId }),
++  };
++}
++
++async function makeStereoAdapter() {
++  const onCaption = vi.fn();
++  const onFailure = vi.fn();
++  const onDisconnected = vi.fn();
++
++  const captureStop = vi.fn(async () => undefined);
++  const transportStop = vi.fn(async () => undefined);
++  const transportCancel = vi.fn();
++
++  let providerHandlers: StreamClientHandlers | undefined;
++
++  const adapter = new SeparateStreamAdapter({
++    selection: { microphone: true, system: true },
++    stereo: true,
++
++    requestCapability: async () => {
++      throw new Error('Unexpected mono capability request');
++    },
++
++    requestStereoCapability: async () => ({
++      url: 'wss://local-test.invalid',
++      streamEpoch: 17,
++    }),
++
++    createStereoCapture: () => ({
++      acquire: async () => undefined,
++      startProcessing: async () => undefined,
++      pauseProcessing: async () => undefined,
++      stop: captureStop,
++    }),
++
++    createTransport: (handlers) => {
++      providerHandlers = handlers;
++
++      return {
++        start: async () => undefined,
++        sendAudio: () => true,
++        stop: transportStop,
++        cancel: transportCancel,
++      };
++    },
++  });
++
++  await adapter.start('stereo-test-session', {
++    onCaption,
++    onFailure,
++    onDisconnected,
++  });
++
++  if (!providerHandlers) {
++    throw new Error('Provider handlers were not initialized');
++  }
++
++  return {
++    adapter,
++    providerHandlers,
++    onCaption,
++    onFailure,
++    onDisconnected,
++    captureStop,
++    transportStop,
++    transportCancel,
++  };
++}
++
++describe('stereo channel attribution and failure handling', () => {
++  it('attributes partial captions to the correct physical audio sources', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onPartial?.(makeResult('mic-1', 'microphone partial', true, 'ch_0'));
++
++    test.providerHandlers.onPartial?.(makeResult('system-1', 'system partial', true, 'ch_1'));
++
++    expect(test.onCaption).toHaveBeenCalledTimes(2);
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      1,
++      expect.objectContaining({
++        resultId: 'mic-1',
++        source: 'microphone',
++        channelId: 'ch_0',
++        phase: 'partial',
++        text: 'microphone partial',
++        streamEpoch: 17,
++      }),
++    );
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      2,
++      expect.objectContaining({
++        resultId: 'system-1',
++        source: 'system',
++        channelId: 'ch_1',
++        phase: 'partial',
++        text: 'system partial',
++        streamEpoch: 17,
++      }),
++    );
++
++    expect(test.onFailure).not.toHaveBeenCalled();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++
++    await test.adapter.stop();
++  });
++
++  it('preserves source attribution across interleaved partial and final captions', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onPartial?.(makeResult('mic-1', 'hello', true, 'ch_0'));
++
++    test.providerHandlers.onPartial?.(makeResult('system-1', 'good', true, 'ch_1'));
++
++    test.providerHandlers.onFinal?.(makeResult('system-1', 'good morning', false, 'ch_1'));
++
++    test.providerHandlers.onFinal?.(makeResult('mic-1', 'hello everyone', false, 'ch_0'));
++
++    expect(test.onCaption).toHaveBeenCalledTimes(4);
++
++    expect(
++      test.onCaption.mock.calls.map(([event]) => ({
++        resultId: event.resultId,
++        source: event.source,
++        phase: event.phase,
++        text: event.text,
++      })),
++    ).toEqual([
++      {
++        resultId: 'mic-1',
++        source: 'microphone',
++        phase: 'partial',
++        text: 'hello',
++      },
++      {
++        resultId: 'system-1',
++        source: 'system',
++        phase: 'partial',
++        text: 'good',
++      },
++      {
++        resultId: 'system-1',
++        source: 'system',
++        phase: 'final-observed',
++        text: 'good morning',
++      },
++      {
++        resultId: 'mic-1',
++        source: 'microphone',
++        phase: 'final-observed',
++        text: 'hello everyone',
++      },
++    ]);
++
++    expect(test.onFailure).not.toHaveBeenCalled();
++
++    await test.adapter.stop();
++  });
++
++  it('preserves both sources when transcript timestamps overlap', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onFinal?.(
++      makeResult('mic-overlap', 'microphone speaking', false, 'ch_0', 100, 1800),
++    );
++
++    test.providerHandlers.onFinal?.(
++      makeResult('system-overlap', 'system speaking', false, 'ch_1', 500, 1500),
++    );
++
++    expect(test.onCaption).toHaveBeenCalledTimes(2);
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      1,
++      expect.objectContaining({
++        resultId: 'mic-overlap',
++        source: 'microphone',
++        startMs: 100,
++        endMs: 1800,
++      }),
++    );
++
++    expect(test.onCaption).toHaveBeenNthCalledWith(
++      2,
++      expect.objectContaining({
++        resultId: 'system-overlap',
++        source: 'system',
++        startMs: 500,
++        endMs: 1500,
++      }),
++    );
++
++    expect(test.onFailure).not.toHaveBeenCalled();
++
++    await test.adapter.stop();
++  });
++
++  it('fails closed and stops capture and transport when a channel ID is missing', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onFinal?.(makeResult('missing-channel', 'unattributed speech', false));
++
++    await vi.waitFor(() => {
++      expect(test.captureStop).toHaveBeenCalledOnce();
++      expect(test.transportStop).toHaveBeenCalledOnce();
++    });
++
++    expect(test.onCaption).not.toHaveBeenCalled();
++
++    expect(test.onFailure).toHaveBeenCalledOnce();
++    expect(test.onFailure).toHaveBeenCalledWith(expect.stringContaining('without a channel ID'));
++
++    expect(test.captureStop).toHaveBeenCalledOnce();
++    expect(test.transportStop).toHaveBeenCalledOnce();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++  });
++
++  it('rejects an unexpected channel ID instead of guessing its source', async () => {
++    const test = await makeStereoAdapter();
++
++    // Deliberately simulate invalid provider data outside the
++    // compile-time channel ID contract.
++    const invalidResult = {
++      ...makeResult('unknown-channel', 'unexpected speech', false),
++      channelId: 'ch_2',
++    } as unknown as ProviderResult;
++
++    test.providerHandlers.onFinal?.(invalidResult);
++
++    await vi.waitFor(() => {
++      expect(test.captureStop).toHaveBeenCalledOnce();
++      expect(test.transportStop).toHaveBeenCalledOnce();
++    });
++
++    expect(test.onCaption).not.toHaveBeenCalled();
++    expect(test.onFailure).toHaveBeenCalledOnce();
++    expect(test.captureStop).toHaveBeenCalledOnce();
++    expect(test.transportStop).toHaveBeenCalledOnce();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++  });
++
++  it('suppresses subsequent captions and duplicate failures after attribution fails', async () => {
++    const test = await makeStereoAdapter();
++
++    test.providerHandlers.onFinal?.(
++      makeResult('valid-before', 'valid microphone speech', false, 'ch_0'),
++    );
++
++    test.providerHandlers.onPartial?.(makeResult('invalid-partial', 'unattributed partial', true));
++
++    test.providerHandlers.onFinal?.(makeResult('valid-after', 'late system speech', false, 'ch_1'));
++
++    test.providerHandlers.onFinal?.(makeResult('invalid-after', 'another invalid result', false));
++
++    await vi.waitFor(() => {
++      expect(test.captureStop).toHaveBeenCalledOnce();
++      expect(test.transportStop).toHaveBeenCalledOnce();
++    });
++
++    expect(test.onCaption).toHaveBeenCalledTimes(1);
++
++    expect(test.onCaption).toHaveBeenCalledWith(
++      expect.objectContaining({
++        resultId: 'valid-before',
++        source: 'microphone',
++      }),
++    );
++
++    expect(test.onFailure).toHaveBeenCalledOnce();
++    expect(test.captureStop).toHaveBeenCalledOnce();
++    expect(test.transportStop).toHaveBeenCalledOnce();
++    expect(test.onDisconnected).not.toHaveBeenCalled();
++  });
++});

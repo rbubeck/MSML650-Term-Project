@@ -88,6 +88,7 @@ await client.stop();
 
 - `url` is a sensitive replayable bearer capability and must not enter logs, analytics, storage, navigation, or error text.
 - `sendAudio` returns `false` when a chunk is rejected. Overload and protocol failures are also surfaced through safe error handlers.
+- Frontend Pause keeps this connection open and sends equal-duration PCM silence; it does not call `stop` or request another signed URL. Resume restores real PCM on the same epoch.
 - `stop` is graceful: stop microphone intake first, allow its final flush, drain the bounded accepted queue, send the empty `AudioEvent`, and wait within the terminal-result deadline.
 - `cancel` closes immediately and does not claim a graceful provider stop.
 - Reconnect is not automatic URL reuse. Request a fresh API-authorized URL/epoch, then call `start` again for the same logical application session.

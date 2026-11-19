@@ -19,6 +19,9 @@ import {
   LogOut,
   Mic,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pause,
   Plus,
   Radio,
   Search,
@@ -32,11 +35,16 @@ import {
 } from 'lucide-react';
 import { cognitoAuth } from './auth/cognito';
 import type { AccountView } from './auth/cognito';
-import { config, hasCloudConfig } from './config';
-import { formatClock } from './lib/viewModels';
+import { config, hasCloudConfig, hasAuthConfig } from './config';
+import { visualLevel } from './audio/sourceCapture';
+import { audioFormatLabel, audioSourceExplanation } from './audio/sourcePresentation';
+import {
+  SeparateStreamAdapter,
+  type SeparateStreamHandlers,
+} from './services/separateStreamAdapter';
+import { createFakeTranscribeTransport } from './services/fakeTranscribeSocket';
 import type { CaptionPhase, CaptionView } from './lib/viewModels';
-import { DirectStreamAdapter } from './services/directStreamAdapter';
-import { createLocalStreamingAdapter } from './services/fakeTranscribeSocket';
+import { ContinuousTranscript } from './components/ContinuousTranscript';
 import { exportDemoTranscript, MockSessionStore } from './services/mockSessions';
 import { TeamApi } from './services/teamApi';
 
@@ -51,16 +59,6 @@ function friendlyDate(date: string): string {
   return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function phaseLabel(phase: CaptionPhase): string {
-  return {
-    partial: 'Live · partial',
-    'final-observed': 'Final observed',
-    saving: 'Saving…',
-    'save-acknowledged': 'Saved ✓',
-    'save-failed': 'Save failed',
-  }[phase];
-}
-
 function Banner({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'warn' }) {
   return (
     <div className={`notice notice-${tone}`} role="status">
@@ -70,34 +68,136 @@ function Banner({ children, tone = 'info' }: { children: ReactNode; tone?: 'info
   );
 }
 
+
 function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void }) {
-  const [authPage, setAuthPage] = useState<'login' | 'register' | 'confirm'>('login');
+  type AuthPage = 'login' | 'register' | 'confirm' | 'forgot' | 'reset';
+
+  const [authPage, setAuthPage] = useState<AuthPage>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function navigate(nextPage: AuthPage): void {
+    setAuthPage(nextPage);
+    setError('');
+    setMessage('');
+    setCode('');
+    setPassword('');
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (busy) return;
+
     setBusy(true);
     setError('');
+    setMessage('');
+
     try {
-      if (authPage === 'login') onSignedIn(await cognitoAuth.login(email, password));
-      else if (authPage === 'register') {
-        await cognitoAuth.register(email, password);
+      if (authPage === 'login') {
+        const account = await cognitoAuth.login(email.trim(), password);
+        onSignedIn(account);
+      } else if (authPage === 'register') {
+        await cognitoAuth.register(email.trim(), password);
+        setCode('');
+        setPassword('');
         setAuthPage('confirm');
-      } else {
-        await cognitoAuth.confirm(email, code);
+        setMessage('Check your email for the account verification code.');
+      } else if (authPage === 'confirm') {
+        await cognitoAuth.confirm(email.trim(), code.trim());
+        setCode('');
+        setPassword('');
         setAuthPage('login');
-        setError('Email verified. Sign in to continue.');
+        setMessage('Email verified. You can now sign in.');
+      } else if (authPage === 'forgot') {
+        await cognitoAuth.forgotPassword(email.trim());
+        setCode('');
+        setPassword('');
+        setAuthPage('reset');
+        setMessage(
+          'If your account is eligible, Cognito will send a password reset code to your recovery email.',
+        );
+      } else if (authPage === 'reset') {
+        await cognitoAuth.confirmForgotPassword(
+          email.trim(),
+          code.trim(),
+          password,
+        );
+        setPassword('');
+        setCode('');
+        setAuthPage('login');
+        setMessage('Password updated successfully. Sign in with your new password.');
       }
-    } catch {
-      setError('Unable to complete this step. Verify your details and Cognito configuration.');
+    } catch (error: unknown) {
+      const name = error instanceof Error ? error.name : 'UnknownError';
+
+      switch (name) {
+        case 'CodeMismatchException':
+          setError('The verification code is incorrect. Please try again.');
+          break;
+        case 'ExpiredCodeException':
+          setError('The verification code has expired. Request a new code.');
+          break;
+        case 'InvalidPasswordException':
+          setError('The password does not meet your account password requirements.');
+          break;
+        case 'LimitExceededException':
+          setError('Too many attempts. Please try again later.');
+          break;
+        case 'NotAuthorizedException':
+          setError('Authentication was not authorized. Check your details and try again.');
+          break;
+        case 'UsernameExistsException':
+          setError('An account with this email already exists. Please sign in.');
+          break;
+        case 'UserNotConfirmedException':
+          setError('Your account is not confirmed. Verify your email before signing in.');
+          break;
+        default:
+          setError(
+            'The request could not be completed. Check your details, network, and Cognito configuration.',
+          );
+      }
     } finally {
       setBusy(false);
     }
   }
+
+  const heading =
+    authPage === 'login'
+      ? 'Sign in to your workspace'
+      : authPage === 'register'
+        ? 'Create your account'
+        : authPage === 'confirm'
+          ? 'Verify your email'
+          : authPage === 'forgot'
+            ? 'Forgot your password?'
+            : 'Reset your password';
+
+  const description =
+    authPage === 'forgot'
+      ? 'Enter your account email address to request a password reset code.'
+      : authPage === 'reset'
+        ? 'Enter the code from your email and choose a new password.'
+        : authPage === 'confirm'
+          ? 'Enter the verification code sent to your email.'
+          : config.mode === 'mock'
+            ? 'Preview every screen without AWS.'
+            : 'Secure sign-in powered by Amazon Cognito.';
+
+  const buttonText =
+    authPage === 'login'
+      ? 'Sign in'
+      : authPage === 'register'
+        ? 'Sign up'
+        : authPage === 'confirm'
+          ? 'Verify email'
+          : authPage === 'forgot'
+            ? 'Send reset code'
+            : 'Reset password';
 
   return (
     <div className="auth-page">
@@ -108,109 +208,188 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
           </span>{' '}
           CloudScribe
         </div>
+
         <div className="auth-intro">
-          <div className="eyebrow">THE FUTURE OF MEETING NOTES</div>
+          <div className="eyebrow">REAL-TIME AUDIO TRANSCRIPTION</div>
+
           <h1>
             Every conversation,
             <br />
             <em>captured clearly.</em>
           </h1>
-          <p>A seamless transcription workspace built for secure, real-time collaboration.</p>
+
+          <p>
+            A seamless transcription workspace built for secure,
+            real-time collaboration.
+          </p>
+
           <div className="decor-wave">
             <AudioLines size={120} strokeWidth={1} />
             <AudioLines size={120} strokeWidth={1} />
             <AudioLines size={120} strokeWidth={1} />
           </div>
         </div>
+
         <small>MSML 650 · Cloud Computing Project</small>
       </div>
+
       <div className="auth-form-wrap">
         <div className="auth-form">
           <div className="eyebrow">WELCOME TO CLOUDSCRIBE</div>
-          <h2>
-            {authPage === 'login'
-              ? 'Sign in to your workspace'
-              : authPage === 'register'
-                ? 'Create your account'
-                : 'Verify your email'}
-          </h2>
-          <p className="muted">
-            {config.mode === 'mock'
-              ? 'Preview every screen without AWS.'
-              : 'Secure sign-in powered by Amazon Cognito.'}
-          </p>
+
+          <h2>{heading}</h2>
+
+          <p className="muted">{description}</p>
+
           {config.mode === 'mock' ? (
             <>
-              <button className="primary full" onClick={() => onSignedIn(makeDemoAccount())}>
+              <button
+                className="primary full"
+                type="button"
+                onClick={() => onSignedIn(makeDemoAccount())}
+              >
                 Explore workspace <span>↗</span>
               </button>
-              <Banner>Demo only. No AWS calls, real transcription, or persistent accounts.</Banner>
+
+              <Banner>
+                Demo only. No AWS calls, real transcription,
+                or persistent accounts.
+              </Banner>
             </>
           ) : (
             <form onSubmit={(event) => void submit(event)}>
               <label htmlFor="email">Email address</label>
+
               <input
                 id="email"
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
                 required
+                disabled={busy}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
-              {authPage !== 'confirm' ? (
+
+              {(authPage === 'confirm' || authPage === 'reset') && (
                 <>
-                  <label htmlFor="password">Password</label>
-                  <input
-                    id="password"
-                    type="password"
-                    autoComplete={authPage === 'login' ? 'current-password' : 'new-password'}
-                    required
-                    minLength={8}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                </>
-              ) : (
-                <>
-                  <label htmlFor="code">Email confirmation code</label>
+                  <label htmlFor="code">
+                    {authPage === 'confirm'
+                      ? 'Email confirmation code'
+                      : 'Password reset code'}
+                  </label>
+
                   <input
                     id="code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Enter verification code"
                     required
+                    disabled={busy}
                     value={code}
                     onChange={(event) => setCode(event.target.value)}
                   />
                 </>
               )}
-              <button className="primary full" disabled={busy}>
-                {busy
-                  ? 'Working…'
-                  : authPage === 'login'
-                    ? 'Sign in'
-                    : authPage === 'register'
-                      ? 'Sign up'
-                      : 'Verify email'}
-              </button>
-              {error && (
+
+              {(authPage === 'login' ||
+                authPage === 'register' ||
+                authPage === 'reset') && (
+                <>
+                  <label htmlFor="password">
+                    {authPage === 'reset' ? 'New password' : 'Password'}
+                  </label>
+
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete={
+                      authPage === 'login'
+                        ? 'current-password'
+                        : 'new-password'
+                    }
+                    placeholder={
+                      authPage === 'reset'
+                        ? 'Enter your new password'
+                        : 'Enter your password'
+                    }
+                    required
+                    minLength={authPage === 'login' ? undefined : 8}
+                    disabled={busy}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </>
+              )}
+
+              {authPage === 'login' && (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('forgot')}
+                >
+                  Forgot password?
+                </button>
+              )}
+
+              {message && (
                 <p className="form-feedback" role="status">
+                  {message}
+                </p>
+              )}
+
+              {error && (
+                <p className="form-feedback" role="alert">
                   {error}
                 </p>
               )}
+
               <button
-                className="text-link"
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setAuthPage(authPage === 'login' ? 'register' : 'login');
-                }}
+                className="primary full"
+                type="submit"
+                disabled={busy}
               >
-                {authPage === 'login' ? 'New here? Create an account' : 'Back to sign in'}
+                {busy ? 'Working…' : buttonText}
               </button>
+
+              {authPage === 'login' ? (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('register')}
+                >
+                  New here? Create an account
+                </button>
+              ) : (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('login')}
+                >
+                  Back to sign in
+                </button>
+              )}
+
+              {authPage === 'reset' && (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('forgot')}
+                >
+                  Request another reset code
+                </button>
+              )}
             </form>
           )}
+
           <div className="auth-security">
-            <ShieldCheck size={16} /> No audio or private transcripts are saved by this frontend
-            preview.
+            <ShieldCheck size={16} />
+            No audio or private transcripts are saved by this frontend preview.
           </div>
         </div>
       </div>
@@ -218,34 +397,6 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
   );
 }
 
-function CaptionRow({ caption }: { caption: CaptionView }) {
-  const saved = caption.phase === 'save-acknowledged';
-  return (
-    <div className={`caption-row phase-${caption.phase}`}>
-      <div className="avatar">{caption.speaker.endsWith('2') ? 'B' : 'A'}</div>
-      <div className="caption-body">
-        <div className="caption-head">
-          <strong>{caption.speaker}</strong>
-          <time>{formatClock(caption.timestampMs)}</time>
-          <span
-            className={`phase-indicator ${saved ? 'saved' : ''}`}
-            aria-label={phaseLabel(caption.phase)}
-          >
-            {saved ? (
-              <CheckCheck size={13} />
-            ) : caption.phase === 'saving' ? (
-              <Clock3 size={13} />
-            ) : (
-              <span className="dot" />
-            )}
-            {phaseLabel(caption.phase)}
-          </span>
-        </div>
-        <p>{caption.text}</p>
-      </div>
-    </div>
-  );
-}
 
 function EmptyTranscript() {
   return (
@@ -263,8 +414,9 @@ function EmptyTranscript() {
 
 export function App() {
   const [account, setAccount] = useState<AccountView | null>(null);
-  const [checkingSession, setCheckingSession] = useState(config.mode === 'aws' && hasCloudConfig);
-  const [page, setPage] = useState<Page>('studio');
+  const [checkingSession, setCheckingSession] = useState(config.mode === 'aws' && hasAuthConfig);
+  const [page, setPage] = useState<Page>('live');
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [query, setQuery] = useState('');
   const storeRef = useRef(new MockSessionStore());
   const [version, setVersion] = useState(0);
@@ -274,11 +426,20 @@ export function App() {
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [toast, setToast] = useState('');
-  const [micStatus, setMicStatus] = useState<'idle' | 'requesting' | 'recording' | 'error'>('idle');
+  const [micStatus, setMicStatus] = useState<
+    'idle' | 'requesting' | 'recording' | 'paused' | 'error'
+  >('idle');
   const [micError, setMicError] = useState('');
-  const [micChunks, setMicChunks] = useState(0);
-  const [micNativeRate, setMicNativeRate] = useState(0);
-  const micRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const [useMicrophone, setUseMicrophone] = useState(true);
+  const [useSystemAudio, setUseSystemAudio] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [micInputLevel, setMicInputLevel] = useState(0);
+  const [systemInputLevel, setSystemInputLevel] = useState(0);
+  const micDisplayLevel = visualLevel(micInputLevel);
+  const systemDisplayLevel = visualLevel(systemInputLevel);
+  const audioSelection = { microphone: useMicrophone, system: useSystemAudio };
+  const micRef = useRef<SeparateStreamAdapter | null>(null);
+  const captureRunRef = useRef(0);
   const [liveDemoCaptions, setLiveDemoCaptions] = useState<CaptionView[]>([]);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [apiHealth, setApiHealth] = useState<'unknown' | 'checking' | 'reachable' | 'unavailable'>(
@@ -299,19 +460,38 @@ export function App() {
   const refresh = () => setVersion((current) => current + 1);
 
   useEffect(() => {
-    if (config.mode === 'aws' && hasCloudConfig) {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!micRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    if (config.mode === 'aws' && hasAuthConfig) {
       void cognitoAuth
         .currentUser()
         .then(setAccount)
         .finally(() => setCheckingSession(false));
     }
     return () => {
+      window.removeEventListener('beforeunload', warnBeforeLeaving);
       for (const timer of timersRef.current) clearTimeout(timer);
       void micRef.current?.stop();
     };
   }, []);
 
+  function navigateTo(nextPage: Page): void {
+    if (nextPage !== 'live' && micRef.current) {
+      setToast('Finalize the active transcript before leaving this session.');
+      return;
+    }
+    setPage(nextPage);
+  }
+
   function selectSession(id: string) {
+    if (micRef.current) {
+      setToast('Finalize the active transcript before opening another session.');
+      return;
+    }
     setSelectedId(id);
     setPage('history');
     setLiveDemoCaptions([]);
@@ -319,6 +499,10 @@ export function App() {
   }
 
   function newSession() {
+    if (micRef.current) {
+      setToast('Finalize the active transcript before creating another session.');
+      return;
+    }
     if (config.mode === 'aws') {
       setToast('Session creation awaits the reviewed Zod request schema.');
       return;
@@ -326,6 +510,7 @@ export function App() {
     const created = storeRef.current.create();
     setSelectedId(created.id);
     setLiveDemoCaptions([]);
+    captureRunRef.current = 0;
     setPage('live');
     refresh();
   }
@@ -352,76 +537,204 @@ export function App() {
 
   async function toggleMicrophone() {
     if (micStatus === 'recording') {
-      await micRef.current?.stop();
-      micRef.current = null;
-      setMicStatus('idle');
-      setToast(
-        config.mode === 'mock'
-          ? 'Microphone stopped. Captured PCM stayed in the local simulation.'
-          : 'Live transcription stopped. Final captions are not saved yet.',
+      setMicStatus('requesting');
+      const active = micRef.current;
+      try {
+        await active?.pause();
+        setMicStatus('paused');
+        setToast(
+          config.mode === 'mock'
+            ? 'Paused. Resume will reuse the same audio permissions.'
+            : 'Paused. The selected audio remains authorized for this session.',
+        );
+      } catch {
+        setMicStatus('error');
+        setMicError('Unable to pause transcription. Please retry.');
+      }
+      setMicInputLevel(0);
+      setSystemInputLevel(0);
+      return;
+    }
+    if (!consentGiven) {
+      setMicError('Confirm participant notification and permission before starting.');
+      return;
+    }
+    if (!useMicrophone && !useSystemAudio) {
+      setMicError('Select Microphone, System audio, or both.');
+      return;
+    }
+    if (config.mode === 'aws' && !hasCloudConfig) {
+      setMicError(
+        'Set VITE_API_BASE_URL to the deployed API Gateway URL before live transcription.',
+      );
+      return;
+    }
+    if (config.mode === 'aws' && !selectedId) {
+      setMicError(
+        'AWS transcription requires a session owned by your test account. Set VITE_LIVE_SESSION_ID.',
       );
       return;
     }
     setMicStatus('requesting');
     setMicError('');
-    setMicChunks(0);
-    try {
-      const onStatus = (status: { receivedChunks: number; sampleRate: number }) => {
-        setMicChunks(status.receivedChunks);
-        setMicNativeRate(status.sampleRate);
-      };
-      if (!selectedId)
-        throw new Error('A session is required before live transcription can start.');
+    setMicInputLevel(0);
+    setSystemInputLevel(0);
+    const retained = micStatus === 'paused' ? micRef.current : null;
+    if (retained) {
+      try {
+        await retained.resume();
+        if (micRef.current === retained) setMicStatus('recording');
+      } catch (error) {
+        if (micRef.current !== retained) return;
+        setMicInputLevel(0);
+        setSystemInputLevel(0);
+        setMicError(error instanceof Error ? error.message : 'Unable to resume transcription.');
+        setMicStatus('paused');
+      }
+      return;
+    }
 
-      const adapter =
-        config.mode === 'mock'
-          ? createLocalStreamingAdapter(onStatus)
-          : new DirectStreamAdapter({
-              requestCapability: async (sessionId) => {
-                const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
-                const capability = await api.requestStreamCapability(sessionId);
-                return { url: capability.url, streamEpoch: capability.streamEpoch };
-              },
-              onCaptureStatus: onStatus,
-            });
+    const captureRun = captureRunRef.current + 1;
+    captureRunRef.current = captureRun;
 
-      await adapter.start(selectedId, {
-        onCaption: (event) => {
-          const caption: CaptionView = {
-            id: `${event.streamEpoch}:${event.resultId}`,
-            speaker: config.mode === 'mock' ? 'Local simulation' : 'Live transcription',
-            timestampMs: event.startMs,
-            text: event.text,
-            phase: event.phase,
-          };
-          setLiveDemoCaptions((current) => [
-            ...current.filter((item) => item.id !== caption.id),
-            caption,
-          ]);
-        },
-        onFailure: (message) => {
-          micRef.current = null;
-          setMicError(message);
-          setMicStatus('error');
-        },
-        onDisconnected: () => {
-          micRef.current = null;
-          setMicError(
-            'The transcription stream was interrupted. Start again to request a new URL.',
+    const adapter = new SeparateStreamAdapter({
+      selection: { microphone: useMicrophone, system: useSystemAudio },
+      stereo: config.mode === 'aws' && useMicrophone && useSystemAudio,
+      requestStereoCapability: async (sessionId) => {
+        const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+        const capability = await api.requestStereoStreamCapability(sessionId);
+        // Fail closed: NEVER send two-channel PCM to a mono signed connection.
+        const signed = new URL(capability.url);
+        if (
+          capability.channels !== 2 ||
+          signed.searchParams.get('number-of-channels') !== '2' ||
+          signed.searchParams.get('enable-channel-identification') !== 'true'
+        ) {
+          throw new Error(
+            'The deployed AWS backend has not enabled stereo channel identification. Ask your teammate to deploy the v5 signer update.',
           );
-          setMicStatus('error');
-        },
-      });
-      micRef.current = adapter;
-      setMicStatus('recording');
-    } catch (error: unknown) {
+        }
+        return { url: capability.url, streamEpoch: capability.streamEpoch };
+      },
+      requestCapability:
+        config.mode === 'mock'
+          ? async () => ({
+              url: 'wss://local-fake.invalid/stream-transcription-websocket',
+              streamEpoch: Date.now(),
+            })
+          : async (sessionId) => {
+              const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+              const capability = await api.requestStreamCapability(sessionId);
+              return { url: capability.url, streamEpoch: capability.streamEpoch };
+            },
+      ...(config.mode === 'mock' ? { createTransport: createFakeTranscribeTransport } : {}),
+      onCaptureStatus: (status) => {
+        setMicInputLevel((previous) => Math.max(status.micLevel, previous * 0.35));
+        setSystemInputLevel((previous) => Math.max(status.systemLevel, previous * 0.35));
+      },
+    });
+    micRef.current = adapter;
+    try {
+      // adapter.start() begins getDisplayMedia before its first await.
+      await adapter.start(selectedId, streamHandlers(adapter, captureRun));
+      if (micRef.current === adapter) setMicStatus('recording');
+    } catch (error) {
+      if (micRef.current !== adapter) return;
       micRef.current = null;
-      setMicError(
-        error instanceof Error
-          ? error.message
-          : 'Live transcription could not start. Check the API and microphone configuration.',
-      );
+      await adapter.stop().catch(() => undefined);
+      setMicInputLevel(0);
+      setSystemInputLevel(0);
+      setMicError(error instanceof Error ? error.message : 'Unable to start transcription.');
       setMicStatus('error');
+    }
+  }
+
+  function streamHandlers(
+    adapter: SeparateStreamAdapter,
+    captureRun: number,
+  ): SeparateStreamHandlers {
+    return {
+      onCaption: (event) => {
+        if (micRef.current !== adapter) return;
+        const caption: CaptionView = {
+          id: event.source + ':' + String(event.streamEpoch) + ':' + event.resultId,
+          speaker: event.source === 'microphone' ? 'You' : 'System audio',
+          timestampMs: event.startMs,
+          text: event.text,
+          phase: event.phase,
+          streamEpoch: captureRun,
+        };
+        setLiveDemoCaptions((current) => [
+          ...current.filter((item) => item.id !== caption.id),
+          caption,
+        ]);
+      },
+      onFailure: (message) => {
+        if (micRef.current !== adapter) return;
+        micRef.current = null;
+        setMicError(message);
+        setMicStatus('error');
+      },
+      onDisconnected: () => {
+        if (micRef.current !== adapter) return;
+        micRef.current = null;
+        setMicError(
+          'The selected audio source ended. Choose the source again to continue this session.',
+        );
+        setMicStatus('error');
+      },
+    };
+  }
+
+  async function finishSession() {
+    if (config.mode === 'aws' && micStatus === 'recording') {
+      const active = micRef.current;
+      setMicStatus('requesting');
+      try {
+        await active?.pause();
+        setMicStatus('paused');
+        setMicError(
+          'Capture is paused. Finish again after every observed final shows as durably saved.',
+        );
+      } catch {
+        setMicStatus('error');
+        setMicError('Unable to settle the current transcription stream. Please retry.');
+      }
+      return;
+    }
+    const unsavedFinals = liveDemoCaptions.some((caption) => caption.phase === 'final-observed');
+    if (config.mode === 'aws' && unsavedFinals) {
+      setMicError(
+        'This session still has final text awaiting durable acknowledgment. Finish is blocked to prevent transcript loss.',
+      );
+      return;
+    }
+    const active = micRef.current;
+    setMicStatus('requesting');
+    setMicError('');
+    try {
+      await active?.stop();
+      if (micRef.current === active) micRef.current = null;
+      if (config.mode === 'aws') {
+        const api = new TeamApi(config.apiBaseUrl, cognitoAuth.getAccessToken);
+        await api.completeSession(selectedId, {});
+      } else if (storeRef.current.get(selectedId)) {
+        for (const caption of liveDemoCaptions.filter(
+          (entry) => entry.phase === 'final-observed' || entry.phase === 'save-acknowledged',
+        )) {
+          storeRef.current.saveCaption(selectedId, { ...caption, phase: 'save-acknowledged' });
+        }
+        refresh();
+      }
+      setMicStatus('idle');
+      setMicInputLevel(0);
+      setSystemInputLevel(0);
+      setToast('Session finalized and closed.');
+      setPage('history');
+    } catch (error) {
+      if (micRef.current === active) micRef.current = null;
+      setMicStatus('paused');
+      setMicError(error instanceof Error ? error.message : 'Unable to finalize this session.');
     }
   }
 
@@ -463,8 +776,12 @@ export function App() {
           timestampMs: 0,
           text: item.text,
           phase: item.phase,
+          streamEpoch: captureRunRef.current || 1,
         };
-        setLiveDemoCaptions([caption]);
+        setLiveDemoCaptions((current) => [
+          ...current.filter((existing) => existing.id !== caption.id),
+          caption,
+        ]);
         if (item.phase === 'save-acknowledged' && storeRef.current.get(id)) {
           storeRef.current.saveCaption(id, caption);
           refresh();
@@ -488,18 +805,22 @@ export function App() {
   }
 
   async function logout() {
+    if (micRef.current) {
+      setToast('Finalize the active transcript before signing out.');
+      return;
+    }
     if (config.mode === 'aws') await cognitoAuth.logout();
     setAccount(null);
   }
 
-  if (config.mode === 'aws' && !hasCloudConfig)
+  if (config.mode === 'aws' && !hasAuthConfig)
     return (
       <div className="config-page">
         <Cloud size={42} />
         <h1>Cloud integration is not configured</h1>
         <p>
-          Set the public Cognito identifiers and deployed API URL in <code>frontend/.env</code>{' '}
-          before starting AWS mode.
+          Set the public Cognito identifiers in <code>frontend/.env.local</code> before creating an
+          account. An API Gateway URL is required later for live transcription.
         </p>
         <pre>
           VITE_APP_MODE=aws{'\n'}VITE_API_BASE_URL=https://…{'\n'}VITE_COGNITO_USER_POOL_ID=…{'\n'}
@@ -522,63 +843,85 @@ export function App() {
 
   return (
     <div className="app-frame">
-      <aside className="sidebar" aria-label="Main navigation">
+      <aside
+        className={`sidebar ${sidebarExpanded ? 'sidebar-expanded' : 'sidebar-collapsed'}`}
+        aria-label="Main navigation"
+      >
         <div className="brand">
           <span className="brand-mark">
             <AudioLines size={22} />
           </span>
-          <span>CloudScribe</span>
-          <span className="brand-version">beta</span>
+          <span className="sidebar-copy">CloudScribe</span>
+          <span className="brand-version sidebar-copy">beta</span>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={sidebarExpanded ? 'Collapse navigation' : 'Expand navigation'}
+            onClick={() => setSidebarExpanded((expanded) => !expanded)}
+          >
+            {sidebarExpanded ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
         </div>
         <div className="sidebar-actions">
-          <button className="new-button" onClick={newSession}>
-            <Plus size={18} /> New session <span>⌘ K</span>
+          <button className="new-button" onClick={newSession} title="New transcription session">
+            <Plus size={18} /> <span className="sidebar-copy new-button-label">New session</span>
           </button>
         </div>
         <nav className="main-nav" aria-label="Workspace sections">
-          {(['studio', 'live', 'history', 'settings'] as const).map((name) => {
+          {(['live', 'history', 'settings'] as const).map((name) => {
             const Icon = icons[name];
             return (
               <button
                 key={name}
-                onClick={() => setPage(name)}
+                onClick={() => navigateTo(name)}
                 className={`nav-link ${page === name ? 'active' : ''}`}
                 aria-current={page === name ? 'page' : undefined}
+                title={
+                  name === 'live'
+                    ? 'Record'
+                    : name === 'history'
+                      ? 'Transcript library'
+                      : 'Settings'
+                }
               >
                 <Icon size={18} />
-                {name === 'studio'
-                  ? 'Workspace'
-                  : name === 'live'
-                    ? 'Live transcription'
+                <span className="sidebar-copy">
+                  {name === 'live'
+                    ? 'Record'
                     : name === 'history'
                       ? 'Transcript library'
                       : 'Settings'}
+                </span>
               </button>
             );
           })}
         </nav>
-        <div className="sidebar-section">
-          <div className="sidebar-section-heading">
-            <span>YOUR SESSIONS</span>
-            <MoreHorizontal size={16} />
+        {sessions.length > 0 && (
+          <div className="sidebar-section sidebar-copy">
+            <div className="sidebar-section-heading">
+              <span>RECENT SESSIONS</span>
+              <MoreHorizontal size={16} />
+            </div>
+            <div className="sidebar-session-list">
+              {sessions.slice(0, 8).map((item) => (
+                <button
+                  key={item.id}
+                  className={`sidebar-session ${selectedId === item.id ? 'selected' : ''}`}
+                  onClick={() => selectSession(item.id)}
+                >
+                  <FileText size={15} />
+                  <span>{item.title}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="sidebar-session-list">
-            {sessions.slice(0, 8).map((item) => (
-              <button
-                key={item.id}
-                className={`sidebar-session ${selectedId === item.id ? 'selected' : ''}`}
-                onClick={() => selectSession(item.id)}
-              >
-                <FileText size={15} />
-                <span>{item.title}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
         <div className="sidebar-bottom">
           <div className="connection-status">
             <span className={`status-dot ${config.mode === 'aws' ? 'pending' : ''}`} />
-            {config.mode === 'mock' ? 'Local demo environment' : 'AWS integration mode'}
+            <span className="sidebar-copy">
+              {config.mode === 'mock' ? 'Local demo' : 'AWS mode'}
+            </span>
           </div>
           <button className="profile" onClick={() => void logout()} title="Sign out">
             <div className="profile-avatar">
@@ -596,44 +939,24 @@ export function App() {
       <div className="main-area">
         <header className="topbar">
           <div className="breadcrumb">
-            Workspace <span>/</span>{' '}
-            <strong>
-              {page === 'studio'
-                ? 'Overview'
-                : page === 'live'
-                  ? 'Live studio'
-                  : page === 'history'
-                    ? 'Transcript library'
-                    : 'Settings'}
-            </strong>
+            <strong>CloudScribe</strong>
+            <span>/</span>{' '}
+            {page === 'live' ? 'Record' : page === 'history' ? 'Library' : 'Settings'}
           </div>
           <div className="topbar-right">
             <span className="top-label">
-              <ShieldCheck size={15} />{' '}
-              {config.mode === 'mock' ? 'Safe demo mode' : 'Cognito enabled'}
+              <ShieldCheck size={15} /> {config.mode === 'mock' ? 'Demo mode' : 'Signed in'}
             </span>
             <button
               className="icon-button"
               aria-label="View settings"
-              onClick={() => setPage('settings')}
+              onClick={() => navigateTo('settings')}
             >
               <Settings2 size={17} />
             </button>
           </div>
         </header>
-        <main className="content">
-          {config.mode === 'mock' ? (
-            <Banner>
-              <strong>Demo mode:</strong> captions and sessions use fake data. Microphone checks
-              capture real PCM locally but do not send or save audio.
-            </Banner>
-          ) : (
-            <Banner tone="warn">
-              <strong>AWS integration:</strong> live streaming is wired for an owned session. Final
-              captions remain browser-only until the segment-save API is connected.
-            </Banner>
-          )}
-
+        <main className={`content page-${page}`}>
           {page === 'studio' && (
             <>
               <section className="hero">
@@ -750,149 +1073,159 @@ export function App() {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow accent">LIVE STUDIO</div>
-                  <h1>Capture the conversation</h1>
-                  <p>
-                    Review real microphone PCM preparation and clearly distinguished caption/save
-                    states.
-                  </p>
+                  <h1>Live transcription</h1>
+                  <p>Select an audio source, start capture, and read one continuous transcript.</p>
                 </div>
-                <span className="pill">
-                  <Radio size={15} /> Audio workspace
-                </span>
               </div>
-              <div className="live-grid">
-                <section className="panel recording-panel">
-                  <div className="panel-top">
-                    <span className="panel-kicker">
-                      <span
-                        className={`status-dot ${micStatus === 'recording' ? 'recording' : ''}`}
-                      />
-                      {micStatus === 'recording' ? 'Microphone recording' : 'Microphone idle'}
-                    </span>
-                    <span className="mode-label">16 kHz • Mono • PCM 16-bit</span>
-                  </div>
-                  <div className={`record-visual ${micStatus === 'recording' ? 'active' : ''}`}>
-                    <div className="record-circle">
-                      <Mic size={38} />
-                    </div>
-                    <div className="wave-bars" aria-hidden="true">
-                      {Array.from({ length: 23 }, (_, index) => (
-                        <span key={index} style={{ height: `${16 + ((index * 23) % 48)}px` }} />
-                      ))}
-                    </div>
-                  </div>
-                  <h2>
-                    {micStatus === 'recording'
-                      ? 'Microphone capture active'
-                      : 'Ready to test your microphone?'}
-                  </h2>
-                  <p>
-                    {config.mode === 'mock'
-                      ? 'With your permission, audio is resampled and sent only to the local simulation.'
-                      : 'With your permission, audio is resampled and streamed directly to Amazon Transcribe.'}
-                  </p>
-                  <div className="live-stats">
-                    <div>
-                      <strong>{micChunks}</strong>
-                      <span>PCM chunks</span>
-                    </div>
+              <section className="panel live-workspace">
+                <header className="live-workspace-toolbar">
+                  <div className="live-workspace-status">
+                    <span
+                      className={`status-dot ${
+                        micStatus === 'recording'
+                          ? 'recording'
+                          : micStatus === 'paused'
+                            ? 'paused'
+                            : ''
+                      }`}
+                    />
                     <div>
                       <strong>
-                        {micNativeRate ? `${(micNativeRate / 1_000).toFixed(1)} kHz` : '—'}
+                        {micStatus === 'recording'
+                          ? 'Recording'
+                          : micStatus === 'paused'
+                            ? 'Paused'
+                            : 'Ready'}
                       </strong>
-                      <span>Browser input</span>
-                    </div>
-                    <div>
-                      <strong>16 kHz</strong>
-                      <span>PCM output</span>
+                      <span>{audioFormatLabel(config.mode, audioSelection)}</span>
                     </div>
                   </div>
-                  <button
-                    className={
-                      micStatus === 'recording'
-                        ? 'danger recording-button'
-                        : 'primary recording-button'
-                    }
-                    disabled={micStatus === 'requesting'}
-                    onClick={() => void toggleMicrophone()}
-                  >
-                    {micStatus === 'recording' ? (
-                      <>
-                        <Square size={17} /> Stop capture
-                      </>
-                    ) : (
-                      <>
-                        <Mic size={18} />{' '}
-                        {micStatus === 'requesting'
-                          ? 'Connecting…'
-                          : config.mode === 'mock'
-                            ? 'Test microphone'
-                            : 'Start live transcription'}
-                      </>
-                    )}
-                  </button>
-                  {micError && (
-                    <div className="form-feedback" role="alert">
-                      {micError}
-                    </div>
-                  )}
-                  <p className="consent-note">
-                    <LockKeyhole size={13} /> Microphone access begins only when you press the
-                    button. Raw audio is not stored by this application.
-                  </p>
-                </section>
-                <section className="panel captions-panel">
-                  <div className="panel-top">
-                    <div>
-                      <strong>Live captions</strong>
-                      <p>Reviewable transcript states</p>
-                    </div>
-                    <div className="live-pill">
-                      <span />{' '}
-                      {config.mode === 'mock'
-                        ? 'Simulated'
-                        : micStatus === 'recording'
-                          ? 'Connected'
-                          : 'Ready'}
-                    </div>
-                  </div>
-                  <div className="captions-scroller" aria-live="polite">
-                    {selectedDisplay.length ? (
-                      selectedDisplay.map((caption) => (
-                        <CaptionRow key={caption.id} caption={caption} />
-                      ))
-                    ) : (
-                      <EmptyTranscript />
-                    )}
-                  </div>
-                  <div className="caption-footer">
-                    <div className="caption-legend">
-                      <span>
-                        <span className="dot purple" /> Partial
-                      </span>
-                      <span>
-                        <span className="dot orange" /> Final observed
-                      </span>
-                      <span>
-                        <CheckCheck size={12} /> Saved
-                      </span>
-                    </div>
-                    {config.mode === 'mock' ? (
-                      <button className="secondary small" onClick={playMockCaptions}>
-                        <Sparkles size={15} /> Play sample captions
+                  <div className="live-session-actions">
+                    {(micStatus === 'recording' || micStatus === 'paused') && (
+                      <button className="secondary" onClick={() => void finishSession()}>
+                        <Square size={14} /> Finish
                       </button>
-                    ) : (
-                      <span className="mode-label">
-                        {micStatus === 'recording' ? 'Receiving AWS results' : 'Start when ready'}
+                    )}
+                    <button
+                      className={micStatus === 'recording' ? 'danger' : 'primary'}
+                      disabled={
+                        micStatus === 'requesting' ||
+                        (micStatus !== 'recording' &&
+                          (!consentGiven || (!useMicrophone && !useSystemAudio)))
+                      }
+                      onClick={() => void toggleMicrophone()}
+                    >
+                      {micStatus === 'recording' ? (
+                        <>
+                          <Pause size={16} /> Pause
+                        </>
+                      ) : (
+                        <>
+                          <Mic size={17} />
+                          {micStatus === 'requesting'
+                            ? 'Working…'
+                            : liveDemoCaptions.length
+                              ? 'Resume'
+                              : 'Start transcription'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </header>
+
+                <div className="live-source-bar">
+                  <div className="live-source-options" role="group" aria-label="Audio sources">
+                    <label className={useMicrophone ? 'selected' : ''}>
+                      <input
+                        type="checkbox"
+                        checked={useMicrophone}
+                        disabled={
+                          micStatus === 'requesting' ||
+                          micStatus === 'recording' ||
+                          (micStatus === 'paused' && micRef.current !== null)
+                        }
+                        onChange={(event) => setUseMicrophone(event.target.checked)}
+                      />
+                      <Mic size={16} />
+                      <span>Microphone</span>
+                    </label>
+                    <label className={useSystemAudio ? 'selected' : ''}>
+                      <input
+                        type="checkbox"
+                        checked={useSystemAudio}
+                        disabled={
+                          micStatus === 'requesting' ||
+                          micStatus === 'recording' ||
+                          (micStatus === 'paused' && micRef.current !== null)
+                        }
+                        onChange={(event) => setUseSystemAudio(event.target.checked)}
+                      />
+                      <AudioLines size={16} />
+                      <span>System audio</span>
+                    </label>
+                  </div>
+                  <span className="live-source-help">
+                    {micRef.current && useSystemAudio
+                      ? 'System audio is selected for this session. Pause and Resume keep the same shared tab authorized.'
+                      : audioSourceExplanation(config.mode, audioSelection)}
+                  </span>
+                </div>
+
+                <div className="live-consent-row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={consentGiven}
+                      disabled={micStatus === 'requesting' || micStatus === 'recording'}
+                      onChange={(event) => setConsentGiven(event.target.checked)}
+                    />
+                    <span>I have permission to transcribe this audio.</span>
+                  </label>
+                  <div className="live-levels" aria-label="Audio input levels">
+                    {useMicrophone && (
+                      <span title={`Microphone level ${Math.round(micDisplayLevel * 100)}%`}>
+                        Mic
+                        <i style={{ width: `${Math.max(4, micDisplayLevel * 100)}%` }} />
+                      </span>
+                    )}
+                    {useSystemAudio && (
+                      <span title={`System audio level ${Math.round(systemDisplayLevel * 100)}%`}>
+                        System
+                        <i style={{ width: `${Math.max(4, systemDisplayLevel * 100)}%` }} />
                       </span>
                     )}
                   </div>
-                </section>
-              </div>
-              <Banner>
-                In the real AWS flow, final text must be acknowledged by the session API before the
-                UI marks it saved. Partial captions are never durable.
-              </Banner>
+                </div>
+
+                {micError && (
+                  <div className="form-feedback live-error" role="alert">
+                    {micError}
+                  </div>
+                )}
+
+                <div className="live-document-shell" aria-live="polite">
+                  <ContinuousTranscript
+                    captions={selectedDisplay}
+                    active={micStatus === 'recording'}
+                    simulated={config.mode === 'mock'}
+                  />
+                </div>
+
+                <footer className="live-workspace-footer">
+                  <span>
+                    {micStatus === 'recording'
+                      ? 'Final results are appended to this document as they arrive.'
+                      : micStatus === 'paused'
+                        ? 'Paused sources stay authorized. Finish closes and saves the session.'
+                        : 'The session is saved only when you finish it.'}
+                  </span>
+                  {config.mode === 'mock' && (
+                    <button className="secondary small" onClick={playMockCaptions}>
+                      <Sparkles size={14} /> Preview formatting
+                    </button>
+                  )}
+                </footer>
+              </section>
             </>
           )}
 
@@ -1016,10 +1349,16 @@ export function App() {
                         </span>
                       </div>
                       <div className="detail-caption-list">
-                        {session.captions.length ? (
-                          session.captions
-                            .filter((caption) => caption.phase === 'save-acknowledged')
-                            .map((caption) => <CaptionRow key={caption.id} caption={caption} />)
+                        {session.captions.some(
+                          (caption) => caption.phase === 'save-acknowledged',
+                        ) ? (
+                          <ContinuousTranscript
+                            captions={session.captions.filter(
+                              (caption) => caption.phase === 'save-acknowledged',
+                            )}
+                            simulated={config.mode === 'mock'}
+                            context="history"
+                          />
                         ) : (
                           <EmptyTranscript />
                         )}
@@ -1067,10 +1406,10 @@ export function App() {
                   </div>
                   <h3>Streaming</h3>
                   <p>
-                    AudioWorklet-to-stream-client routing is locally fake-tested. AWS mode still
-                    requires the accepted signing response from the control API.
+                    AudioWorklet forwards selected audio through the shared EventStream client. AWS
+                    mode uses a signed capability from the session API.
                   </p>
-                  <span className="tiny-status warning">LOCAL FAKE READY</span>
+                  <span className="tiny-status">CAPTURE-TO-STREAM CONNECTED</span>
                 </section>
                 <section className="panel setting-card">
                   <div className="setting-icon">
@@ -1109,7 +1448,7 @@ export function App() {
                   </span>
                 </section>
               )}
-              <section className="panel architecture-note">
+              {/*<section className="panel architecture-note">
                 <h3>Accepted team architecture · Option A</h3>
                 <div className="architecture-flow">
                   <span>React UI + AudioWorklet</span>
@@ -1129,18 +1468,10 @@ export function App() {
                   Important: No 16-byte application header, no browser AWS secret, and no raw
                   microphone archive in the accepted initial design.
                 </p>
-              </section>
+              </section>*/}
             </>
           )}
         </main>
-        <footer className="footer">
-          <span>CloudScribe • MSML 650</span>
-          <span>
-            {config.mode === 'mock'
-              ? 'No AWS charges · Demo data only'
-              : 'AWS account authorization required for paid testing'}
-          </span>
-        </footer>
       </div>
       {toast && (
         <button className="toast" onClick={() => setToast('')} role="status">

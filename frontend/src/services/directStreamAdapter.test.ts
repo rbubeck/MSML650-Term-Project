@@ -1,231 +1,181 @@
-import { describe, expect, it, vi } from 'vitest';
-import type {
-  AudioBytes,
-  StreamClientHandlers,
-  StreamStartOptions,
-} from '@live-transcription/stream-client';
-import type { CaptureStatus, PcmChunk } from '../audio/microphone';
-import { DirectStreamAdapter, type PcmCapture, type StreamTransport } from './directStreamAdapter';
+﻿import { describe, expect, it, vi } from 'vitest';
+import type { PcmChunk } from '../audio/microphone';
+import type { SourceCaptureStatus } from '../audio/sourceCapture';
+import {
+  DirectStreamAdapter,
+  type CaptureFactory,
+  type StreamTransport,
+} from './directStreamAdapter';
+import { createFakeTranscribeTransport } from './fakeTranscribeSocket';
 
-class FakeTransport implements StreamTransport {
-  readonly calls: string[] = [];
-  readonly audio: AudioBytes[] = [];
-  startOptions: StreamStartOptions | undefined;
-  cancelled = false;
+const audioPacket = (): PcmChunk => ({
+  pcm: new Uint8Array(3200).fill(1).buffer,
+  sequence: 0,
+  startSample: 0,
+  validSamples: 1600,
+  final: false,
+});
 
-  constructor(readonly handlers: StreamClientHandlers) {}
-
-  async start(options: StreamStartOptions): Promise<void> {
-    this.calls.push('transport:start');
-    this.startOptions = options;
-  }
-
-  sendAudio(audio: AudioBytes): boolean {
-    this.calls.push('transport:audio');
-    this.audio.push(audio);
-    return true;
-  }
-
-  async stop(): Promise<void> {
-    this.calls.push('transport:stop');
-  }
-
-  cancel(): void {
-    this.calls.push('transport:cancel');
-    this.cancelled = true;
-  }
-}
-
-class FakeCapture implements PcmCapture {
-  readonly calls: string[] = [];
-  failStart = false;
-
-  constructor(
-    private readonly onChunk: (chunk: PcmChunk) => void,
-    private readonly onStatus: (status: CaptureStatus) => void,
-  ) {}
-
-  async start(): Promise<void> {
-    this.calls.push('capture:start');
-    if (this.failStart) throw new Error('Microphone unavailable.');
-    this.onStatus({ receivedChunks: 0, sampleRate: 48_000, level: 0 });
-  }
-
-  emit(pcm = new ArrayBuffer(3_200), final = false): void {
-    this.onChunk({ pcm, sequence: 0, startSample: 0, validSamples: 1_600, final });
-  }
-
-  async stop(): Promise<void> {
-    this.calls.push('capture:stop');
-    this.emit(new ArrayBuffer(3_200), true);
-  }
-}
-
-function result(isPartial: boolean) {
-  return {
-    streamEpoch: 3,
-    resultId: 'result-1',
-    text: isPartial ? 'hello wor' : 'hello world',
-    isPartial,
-    startMs: 120,
-    endMs: 900,
-  } as const;
-}
-
-describe('DirectStreamAdapter', () => {
-  it('connects before capture, routes PCM, and maps partial/final results for the UI', async () => {
-    const order: string[] = [];
-    let transport: FakeTransport | undefined;
-    let capture: FakeCapture | undefined;
-    const statuses: CaptureStatus[] = [];
-    const captions: unknown[] = [];
-    const adapter = new DirectStreamAdapter({
-      requestCapability: async (sessionId) => {
-        order.push(`capability:${sessionId}`);
-        return { url: 'wss://fake.invalid/stream', streamEpoch: 3 };
-      },
-      createTransport: (handlers) => {
-        transport = new FakeTransport(handlers);
-        const originalStart = transport.start.bind(transport);
-        transport.start = async (options) => {
-          order.push('transport:start');
-          await originalStart(options);
-        };
-        return transport;
-      },
-      createCapture: (onChunk, onStatus) => {
-        capture = new FakeCapture(onChunk, onStatus);
-        const originalStart = capture.start.bind(capture);
-        capture.start = async () => {
-          order.push('capture:start');
-          await originalStart();
-        };
-        return capture;
-      },
-      onCaptureStatus: (status) => statuses.push(status),
-    });
-
-    await adapter.start('session-1', {
-      onCaption: (caption) => captions.push(caption),
-      onFailure: vi.fn(),
-      onDisconnected: vi.fn(),
-    });
-    capture?.emit();
-    transport?.handlers.onPartial?.(result(true));
-    transport?.handlers.onFinal?.(result(false));
-
-    expect(order).toEqual(['capability:session-1', 'transport:start', 'capture:start']);
-    expect(transport?.startOptions).toEqual({ url: 'wss://fake.invalid/stream', streamEpoch: 3 });
-    expect(transport?.audio).toHaveLength(1);
-    expect(statuses[0]?.sampleRate).toBe(48_000);
-    expect(captions).toEqual([
-      {
-        streamEpoch: 3,
-        resultId: 'result-1',
-        text: 'hello wor',
-        startMs: 120,
-        endMs: 900,
-        phase: 'partial',
-      },
-      {
-        streamEpoch: 3,
-        resultId: 'result-1',
-        text: 'hello world',
-        startMs: 120,
-        endMs: 900,
-        phase: 'final-observed',
-      },
-    ]);
+function fakeCaptureFactory(steps: string[]): CaptureFactory {
+  return (onChunk, onStatus) => ({
+    acquire: async () => {
+      steps.push('acquire');
+    },
+    startProcessing: async () => {
+      steps.push('processing');
+      for (let i = 0; i < 10; i++) onChunk(audioPacket());
+      onStatus({ receivedChunks: 10, sampleRate: 48000, micLevel: 0.2, systemLevel: 0 });
+    },
+    pauseProcessing: async () => {
+      steps.push('capture-pause');
+    },
+    stop: async () => {
+      steps.push('capture-stop');
+    },
   });
+}
 
-  it('flushes capture audio before gracefully stopping the transport', async () => {
-    const order: string[] = [];
-    let capture: FakeCapture | undefined;
-    const transport = new FakeTransport({});
-    transport.sendAudio = (audio) => {
-      order.push('transport:audio');
-      transport.audio.push(audio);
-      return true;
-    };
-    transport.stop = async () => {
-      order.push('transport:stop');
-    };
+describe('capture to EventStream pipeline', () => {
+  it('routes PCM through the real stream client and returns simulated partial/final captions', async () => {
+    const steps: string[] = [];
+    const onCaption = vi.fn();
+    const onStatus = vi.fn<(status: SourceCaptureStatus) => void>();
     const adapter = new DirectStreamAdapter({
-      requestCapability: async () => ({ url: 'wss://fake.invalid/stream', streamEpoch: 1 }),
-      createTransport: () => transport,
-      createCapture: (onChunk, onStatus) => {
-        capture = new FakeCapture(onChunk, onStatus);
-        const originalStop = capture.stop.bind(capture);
-        capture.stop = async () => {
-          order.push('capture:stop');
-          await originalStop();
-        };
-        return capture;
+      createCapture: fakeCaptureFactory(steps),
+      requestCapability: async () => {
+        steps.push('capability');
+        return { url: 'wss://local-fake.invalid', streamEpoch: 7 };
       },
+      createTransport: createFakeTranscribeTransport,
+      onCaptureStatus: onStatus,
     });
-    await adapter.start('session-1', {
-      onCaption: vi.fn(),
-      onFailure: vi.fn(),
-      onDisconnected: vi.fn(),
-    });
-
+    await adapter.start('local-test', { onCaption, onFailure: vi.fn(), onDisconnected: vi.fn() });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(steps.slice(0, 3)).toEqual(['acquire', 'capability', 'processing']);
+    expect(onStatus).toHaveBeenCalled();
+    expect(onCaption).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'partial', resultId: 'local-1' }),
+    );
+    expect(onCaption).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'final-observed', resultId: 'local-1', streamEpoch: 7 }),
+    );
     await adapter.stop();
-
-    expect(order).toEqual(['capture:stop', 'transport:audio', 'transport:stop']);
-    expect(transport.audio).toHaveLength(1);
+    expect(steps).toContain('capture-stop');
   });
 
-  it('cancels the provider stream if microphone startup fails', async () => {
-    const transport = new FakeTransport({});
+  it('flushes capture before stopping provider', async () => {
+    const steps: string[] = [];
+    const transport: StreamTransport = {
+      start: async () => {
+        steps.push('transport-start');
+      },
+      sendAudio: () => true,
+      stop: async () => {
+        steps.push('provider-stop');
+      },
+      cancel: () => {
+        steps.push('provider-cancel');
+      },
+    };
     const adapter = new DirectStreamAdapter({
-      requestCapability: async () => ({ url: 'wss://fake.invalid/stream', streamEpoch: 1 }),
+      createCapture: fakeCaptureFactory(steps),
+      requestCapability: async () => ({ url: 'wss://local-fake.invalid', streamEpoch: 1 }),
       createTransport: () => transport,
-      createCapture: (onChunk, onStatus) => {
-        const capture = new FakeCapture(onChunk, onStatus);
-        capture.failStart = true;
-        return capture;
-      },
     });
-
-    await expect(
-      adapter.start('session-1', {
-        onCaption: vi.fn(),
-        onFailure: vi.fn(),
-        onDisconnected: vi.fn(),
-      }),
-    ).rejects.toThrow('Microphone unavailable');
-    expect(transport.cancelled).toBe(true);
+    await adapter.start('session', {
+      onCaption: vi.fn(),
+      onFailure: vi.fn(),
+      onDisconnected: vi.fn(),
+    });
+    await adapter.stop();
+    expect(steps.indexOf('capture-pause')).toBeLessThan(steps.indexOf('provider-stop'));
+    expect(steps.indexOf('provider-stop')).toBeLessThan(steps.indexOf('capture-stop'));
   });
 
-  it('exposes safe transport failures and only reports unexpected disconnects', async () => {
-    let transport: FakeTransport | undefined;
-    const onFailure = vi.fn();
-    const onDisconnected = vi.fn();
+  it('keeps one capture and provider epoch while pause sends silence and resume restores PCM', async () => {
+    const steps: string[] = [];
+    const sent: number[][] = [];
+    let emit: ((chunk: PcmChunk) => void) | undefined;
     const adapter = new DirectStreamAdapter({
-      requestCapability: async () => ({ url: 'wss://fake.invalid/stream', streamEpoch: 1 }),
-      createTransport: (handlers) => {
-        transport = new FakeTransport(handlers);
-        return transport;
+      createCapture: (onChunk) => {
+        emit = onChunk;
+        return {
+          acquire: async () => {
+            steps.push('acquire');
+          },
+          startProcessing: async () => {
+            steps.push('processing');
+          },
+          pauseProcessing: async () => {
+            steps.push('capture-flush');
+          },
+          stop: async () => {
+            steps.push('capture-stop');
+          },
+        };
       },
-      createCapture: (onChunk, onStatus) => new FakeCapture(onChunk, onStatus),
+      requestCapability: async () => {
+        steps.push('capability');
+        return { url: 'wss://local-fake.invalid', streamEpoch: 1 };
+      },
+      createTransport: () => ({
+        start: async ({ streamEpoch }) => {
+          steps.push(`provider-start-${streamEpoch}`);
+        },
+        sendAudio: (bytes) => {
+          sent.push([...new Uint8Array(bytes)]);
+          return true;
+        },
+        stop: async () => {
+          steps.push('provider-stop');
+        },
+        cancel: () => undefined,
+      }),
     });
-    await adapter.start('session-1', {
-      onCaption: vi.fn(),
-      onFailure,
-      onDisconnected,
-    });
+    const handlers = { onCaption: vi.fn(), onFailure: vi.fn(), onDisconnected: vi.fn() };
+    await adapter.start('session', handlers);
+    emit?.({ ...audioPacket(), pcm: new Uint8Array([7, 0, 9, 0]).buffer });
+    await adapter.pause();
+    emit?.({ ...audioPacket(), pcm: new Uint8Array([7, 0, 9, 0]).buffer });
+    await adapter.resume();
+    emit?.({ ...audioPacket(), pcm: new Uint8Array([7, 0, 9, 0]).buffer });
+    expect(steps.filter((step) => step === 'acquire')).toHaveLength(1);
+    expect(steps).toContain('provider-start-1');
+    expect(steps.filter((step) => step === 'capability')).toHaveLength(1);
+    expect(steps.filter((step) => step === 'processing')).toHaveLength(1);
+    expect(steps).not.toContain('provider-stop');
+    expect(steps).not.toContain('capture-flush');
+    expect(steps).not.toContain('capture-stop');
+    expect(sent).toEqual([
+      [7, 0, 9, 0],
+      [0, 0, 0, 0],
+      [7, 0, 9, 0],
+    ]);
+    await adapter.stop();
+    expect(steps).toContain('capture-stop');
+  });
 
-    transport?.handlers.onDisconnected?.({ streamEpoch: 1, expected: true });
-    transport?.handlers.onDisconnected?.({ streamEpoch: 1, expected: false });
-    transport?.handlers.onError?.({
-      code: 'DISCONNECTED',
-      message: 'Safe failure.',
-      retryable: true,
+  it('cleans up capture if transport authorization fails', async () => {
+    const steps: string[] = [];
+    const transport: StreamTransport = {
+      start: async () => {},
+      sendAudio: () => true,
+      stop: async () => {},
+      cancel: () => {
+        steps.push('provider-cancel');
+      },
+    };
+    const adapter = new DirectStreamAdapter({
+      createCapture: fakeCaptureFactory(steps),
+      requestCapability: async () => {
+        throw new Error('API request failed (403).');
+      },
+      createTransport: () => transport,
     });
-    transport?.handlers.onDisconnected?.({ streamEpoch: 1, expected: false });
-    await Promise.resolve();
-
-    expect(onFailure).toHaveBeenCalledWith('Safe failure.');
-    expect(onDisconnected).toHaveBeenCalledTimes(1);
+    await expect(
+      adapter.start('session', { onCaption: vi.fn(), onFailure: vi.fn(), onDisconnected: vi.fn() }),
+    ).rejects.toThrow('403');
+    expect(steps).toContain('provider-cancel');
+    expect(steps).toContain('capture-stop');
   });
 });

@@ -1,7 +1,8 @@
 import { streamUrlResponseSchema, type StreamUrlResponse } from '@live-transcription/contracts';
 
-/** Option A control-plane routes from API_CONTRACTS.md. No code here talks to
- * Transcribe or signs URLs.
+/** Option A control-plane routes from API_CONTRACTS.md.
+ * Structured response shapes remain TBD until @live-transcription/contracts publishes Zod schemas.
+ * No code here talks to Transcribe or signs URLs.
  */
 export class TeamApi {
   constructor(
@@ -66,16 +67,29 @@ export class TeamApi {
   deleteSession(sessionId: string): Promise<unknown> {
     return this.request('DELETE', `/v1/sessions/${encodeURIComponent(sessionId)}`);
   }
-  /** Intentionally service-private: the stream adapter consumes the sensitive URL. */
+  /** Validated short-lived provider capability. Never log or store the URL. */
   async requestStreamCapability(sessionId: string): Promise<StreamUrlResponse> {
     const response = await this.request(
       'POST',
-      `/v1/sessions/${encodeURIComponent(sessionId)}/stream-url`,
+      '/v1/sessions/' + encodeURIComponent(sessionId) + '/stream-url',
     );
     const parsed = streamUrlResponseSchema.safeParse(response);
     if (!parsed.success || parsed.data.sessionId !== sessionId) {
-      // Do not expose validation details: they could contain the signed URL.
       throw new Error('The stream authorization response was invalid.');
+    }
+    return parsed.data;
+  }
+
+  /** Request one 2-channel connection without changing the working mono API. */
+  async requestStereoStreamCapability(sessionId: string): Promise<StreamUrlResponse> {
+    const response = await this.request(
+      'POST',
+      `/v1/sessions/${encodeURIComponent(sessionId)}/stream-url`,
+      { channels: 2 },
+    );
+    const parsed = streamUrlResponseSchema.safeParse(response);
+    if (!parsed.success || parsed.data.sessionId !== sessionId || parsed.data.channels !== 2) {
+      throw new Error('The stereo stream authorization response was invalid.');
     }
     return parsed.data;
   }

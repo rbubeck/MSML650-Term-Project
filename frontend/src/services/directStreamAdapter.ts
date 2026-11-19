@@ -4,64 +4,56 @@ import {
   type StreamClientHandlers,
   type StreamStartOptions,
 } from '@live-transcription/stream-client';
-import { MicrophoneCapture, type CaptureStatus, type PcmChunk } from '../audio/microphone';
+import type { PcmChunk } from '../audio/microphone';
+import type { SourceCaptureStatus } from '../audio/sourceCapture';
 import type { StreamUIAdapter, StreamUIHandlers } from './streamPort';
 
 export interface StreamTransport {
   start(options: StreamStartOptions): Promise<void>;
-  sendAudio(audio: AudioBytes): boolean;
+  sendAudio(bytes: AudioBytes): boolean;
   stop(): Promise<void>;
   cancel(): void;
 }
 
-export interface PcmCapture {
-  start(): Promise<void>;
+export interface CaptureBridge {
+  acquire(): Promise<void>;
+  startProcessing(): Promise<void>;
+  pauseProcessing(): Promise<void>;
   stop(): Promise<void>;
 }
 
-export type StreamCapabilityProvider = (sessionId: string) => Promise<StreamStartOptions>;
-export type StreamTransportFactory = (handlers: StreamClientHandlers) => StreamTransport;
-export type PcmCaptureFactory = (
+export type TransportFactory = (handlers: StreamClientHandlers) => StreamTransport;
+export type CaptureFactory = (
   onChunk: (chunk: PcmChunk) => void,
-  onStatus: (status: CaptureStatus) => void,
-) => PcmCapture;
+  onStatus: (status: SourceCaptureStatus) => void,
+  onSourceEnded: () => void,
+) => CaptureBridge;
 
 export interface DirectStreamAdapterOptions {
-  readonly requestCapability: StreamCapabilityProvider;
-  readonly createTransport?: StreamTransportFactory;
-  readonly createCapture?: PcmCaptureFactory;
-  readonly onCaptureStatus?: (status: CaptureStatus) => void;
+  readonly requestCapability: (sessionId: string) => Promise<StreamStartOptions>;
+  readonly createCapture: CaptureFactory;
+  readonly createTransport?: TransportFactory;
+  readonly onCaptureStatus?: (status: SourceCaptureStatus) => void;
 }
 
-/**
- * Person 1/3 integration boundary. The capability provider must return an already validated,
- * API-authorized URL and epoch; this adapter does not define or parse the HTTP response shape.
- */
+/** Provider transport is independent of microphone/system source selection. */
 export class DirectStreamAdapter implements StreamUIAdapter {
-  private readonly createTransport: StreamTransportFactory;
-  private readonly createCapture: PcmCaptureFactory;
-  private readonly onCaptureStatus: (status: CaptureStatus) => void;
+  private capture: CaptureBridge | undefined;
   private transport: StreamTransport | undefined;
-  private capture: PcmCapture | undefined;
-  private starting = false;
+  private connecting = false;
   private stopping: Promise<void> | undefined;
   private aborting: Promise<void> | undefined;
+  private paused = false;
 
-  constructor(private readonly options: DirectStreamAdapterOptions) {
-    this.createTransport =
-      options.createTransport ?? ((handlers) => new TranscribeStreamClient(handlers));
-    this.createCapture =
-      options.createCapture ?? ((onChunk, onStatus) => new MicrophoneCapture(onChunk, onStatus));
-    this.onCaptureStatus = options.onCaptureStatus ?? (() => undefined);
-  }
+  constructor(private readonly options: DirectStreamAdapterOptions) {}
 
   async start(sessionId: string, handlers: StreamUIHandlers): Promise<void> {
-    if (this.starting || this.transport || this.capture) {
-      throw new Error('The live stream is already active.');
+    if (this.connecting || this.capture || this.transport) {
+      throw new Error('The transcription stream is already active.');
     }
-    this.starting = true;
-    let failureSeen = false;
-    const transport = this.createTransport({
+    this.connecting = true;
+    let failed = false;
+    const transport = (this.options.createTransport ?? ((h) => new TranscribeStreamClient(h)))({
       onPartial: (result) =>
         handlers.onCaption({
           streamEpoch: result.streamEpoch,
@@ -70,6 +62,7 @@ export class DirectStreamAdapter implements StreamUIAdapter {
           startMs: result.startMs,
           endMs: result.endMs,
           phase: 'partial',
+          ...(result.channelId ? { channelId: result.channelId } : {}),
         }),
       onFinal: (result) =>
         handlers.onCaption({
@@ -79,35 +72,84 @@ export class DirectStreamAdapter implements StreamUIAdapter {
           startMs: result.startMs,
           endMs: result.endMs,
           phase: 'final-observed',
+          ...(result.channelId ? { channelId: result.channelId } : {}),
         }),
       onError: (error) => {
-        failureSeen = true;
+        if (failed) return;
+        failed = true;
         handlers.onFailure(error.message);
         void this.abortAfterFailure();
       },
       onDisconnected: (event) => {
-        if (!event.expected && !failureSeen) handlers.onDisconnected();
-        if (!event.expected) void this.abortAfterFailure();
+        if (event.expected || failed) return;
+        failed = true;
+        handlers.onDisconnected();
+        void this.abortAfterFailure();
       },
     });
     this.transport = transport;
+    const capture = this.options.createCapture(
+      (chunk) => {
+        if (this.transport !== transport) return;
+        const audio = this.paused ? new Uint8Array(chunk.pcm.byteLength) : chunk.pcm;
+        // The stream client emits a safe onError for buffer overflow/invalid audio.
+        if (!transport.sendAudio(audio) && !failed) {
+          failed = true;
+          handlers.onFailure('Audio could not be sent to the transcription stream.');
+          void this.abortAfterFailure();
+        }
+      },
+      (status) =>
+        this.options.onCaptureStatus?.(
+          this.paused ? { ...status, micLevel: 0, systemLevel: 0 } : status,
+        ),
+      () => {
+        if (this.capture !== capture || failed) return;
+        failed = true;
+        handlers.onDisconnected();
+        void this.abortAfterFailure();
+      },
+    );
+    this.capture = capture;
 
     try {
+      // acquire() runs *before the first await* and calls getDisplayMedia directly
+      // from the UI click. Do not move capability or socket awaits before this.
+      await capture.acquire();
+      if (this.capture !== capture) throw new Error('Audio capture was canceled.');
       const capability = await this.options.requestCapability(sessionId);
+      if (this.capture !== capture) throw new Error('Audio capture was canceled.');
       await transport.start(capability);
-      const capture = this.createCapture((chunk) => {
-        if (this.transport === transport) transport.sendAudio(chunk.pcm);
-      }, this.onCaptureStatus);
-      this.capture = capture;
-      await capture.start();
-    } catch (error: unknown) {
-      this.capture = undefined;
-      this.transport = undefined;
+      if (this.capture !== capture) throw new Error('Audio capture was canceled.');
+      await capture.startProcessing();
+      if (this.capture !== capture) throw new Error('Audio capture was canceled.');
+    } catch (error) {
+      if (this.capture === capture) this.capture = undefined;
+      if (this.transport === transport) this.transport = undefined;
       transport.cancel();
+      await capture.stop();
       throw error;
     } finally {
-      this.starting = false;
+      this.connecting = false;
     }
+  }
+
+  /** Keep the provider session alive, but replace captured PCM with silence. */
+  pause(): Promise<void> {
+    if (!this.capture || !this.transport) {
+      return Promise.reject(new Error('No active transcription stream is available to pause.'));
+    }
+    this.paused = true;
+    return Promise.resolve();
+  }
+
+  /** Resume real PCM on the existing capture and provider connection. */
+  resume(): Promise<void> {
+    if (!this.capture || !this.transport) {
+      return Promise.reject(new Error('No paused transcription stream is available to resume.'));
+    }
+    this.paused = false;
+    return Promise.resolve();
   }
 
   stop(): Promise<void> {
@@ -121,11 +163,14 @@ export class DirectStreamAdapter implements StreamUIAdapter {
     const transport = this.transport;
     this.capture = undefined;
     try {
-      // Capture flushes its final padded PCM chunk before the provider end frame is sent.
-      await capture?.stop();
+      // Processing must flush before the provider end frame. Media tracks are
+      // released only after that epoch has closed.
+      await capture?.pauseProcessing();
       this.transport = undefined;
       await transport?.stop();
+      await capture?.stop();
     } finally {
+      this.paused = false;
       this.transport = undefined;
       this.stopping = undefined;
     }
@@ -140,9 +185,9 @@ export class DirectStreamAdapter implements StreamUIAdapter {
   private async abortActive(): Promise<void> {
     const capture = this.capture;
     const transport = this.transport;
-    // Clear first so a capture flush cannot send audio after a failed provider stream.
     this.capture = undefined;
     this.transport = undefined;
+    this.paused = false;
     transport?.cancel();
     try {
       await capture?.stop();

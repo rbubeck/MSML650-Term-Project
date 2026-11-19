@@ -1,3 +1,4 @@
+import { pcmRmsLevel } from './pcmLevel';
 import {
   AUDIO_CHANNELS,
   AUDIO_CHUNK_DURATION_MS,
@@ -70,6 +71,7 @@ export class MicrophoneCapture {
           typeof data.validSamples === 'number' &&
           typeof data.final === 'boolean'
         ) {
+          const level = pcmRmsLevel(data.pcm, data.validSamples);
           this.chunkCount += 1;
           this.onChunk({
             pcm: data.pcm,
@@ -81,7 +83,7 @@ export class MicrophoneCapture {
           this.onStatus({
             receivedChunks: this.chunkCount,
             sampleRate: this.context?.sampleRate ?? 0,
-            level: 0,
+            level,
           });
         } else if (data.type === 'flushed') {
           this.flushResolver?.();

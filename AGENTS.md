@@ -1,6 +1,6 @@
 # Engineering Agent Instructions — Option A Phase 1
 
-Read `direction_option_a.md`, `README.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, `INTEGRATION_PLAN.md`, your area README, and accepted ADRs before editing.
+Read `docs/team/START_HERE.md` and your `docs/team/person-*.md` brief first. Then read `direction_option_a.md`, `README.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, `INTEGRATION_PLAN.md`, your area README, and accepted ADRs before editing.
 
 ## Active objective
 

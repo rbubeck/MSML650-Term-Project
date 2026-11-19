@@ -112,12 +112,13 @@ describe('streamUrlResponseSchema', () => {
     expect(streamUrlResponseSchema.safeParse(withoutEpoch).success).toBe(false);
   });
 
-  it('allows only mono PCM at 16 kHz', () => {
+  it('allows mono or channel-identified stereo PCM at 16 kHz', () => {
     const change = (patch: Record<string, unknown>) =>
       streamUrlResponseSchema.safeParse({ ...validResponse, ...patch }).success;
     expect(change({ mediaEncoding: 'flac' })).toBe(false);
     expect(change({ sampleRateHz: 44100 })).toBe(false);
-    expect(change({ channels: 2 })).toBe(false);
+    expect(change({ channels: 2 })).toBe(true);
+    expect(change({ channels: 3 })).toBe(false);
     expect(change({ languageCode: '' })).toBe(false);
   });
 

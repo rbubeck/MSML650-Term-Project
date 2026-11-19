@@ -48,6 +48,8 @@ export interface SignTranscribeUrlInput {
   readonly region: string;
   readonly languageCode: string;
   readonly expiresInSeconds: number;
+  /** Absent means original mono stream. */
+  readonly channels?: 2;
   /** Signing time. The URL expires `expiresInSeconds` after this instant. */
   readonly signingDate: Date;
 }

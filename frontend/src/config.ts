@@ -1,4 +1,4 @@
-export type AppMode = 'mock' | 'aws';
+﻿export type AppMode = 'mock' | 'aws';
 
 export const config = {
   mode: import.meta.env.VITE_APP_MODE === 'aws' ? 'aws' : 'mock',
@@ -6,8 +6,7 @@ export const config = {
   cognitoUserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID ?? '',
   cognitoClientId: import.meta.env.VITE_COGNITO_CLIENT_ID ?? '',
   cognitoRegion: import.meta.env.VITE_COGNITO_REGION ?? '',
-  /** Temporary integration input until the create-session UI is connected. */
-  liveSessionId: import.meta.env.VITE_LIVE_SESSION_ID ?? '',
+  liveSessionId: import.meta.env['VITE_LIVE_SESSION_ID'] ?? '',
 } satisfies {
   mode: AppMode;
   apiBaseUrl: string;
@@ -19,4 +18,9 @@ export const config = {
 
 export const hasCloudConfig = Boolean(
   config.apiBaseUrl && config.cognitoUserPoolId && config.cognitoClientId && config.cognitoRegion,
+);
+
+/** Cognito can register a user before the session API is deployed. */
+export const hasAuthConfig = Boolean(
+  config.cognitoUserPoolId && config.cognitoClientId && config.cognitoRegion,
 );

@@ -68,36 +68,136 @@ function Banner({ children, tone = 'info' }: { children: ReactNode; tone?: 'info
   );
 }
 
+
 function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void }) {
-  const [authPage, setAuthPage] = useState<'login' | 'register' | 'confirm'>('login');
+  type AuthPage = 'login' | 'register' | 'confirm' | 'forgot' | 'reset';
+
+  const [authPage, setAuthPage] = useState<AuthPage>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function navigate(nextPage: AuthPage): void {
+    setAuthPage(nextPage);
+    setError('');
+    setMessage('');
+    setCode('');
+    setPassword('');
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (busy) return;
+
     setBusy(true);
     setError('');
+    setMessage('');
+
     try {
-      if (authPage === 'login') onSignedIn(await cognitoAuth.login(email, password));
-      else if (authPage === 'register') {
-        await cognitoAuth.register(email, password);
+      if (authPage === 'login') {
+        const account = await cognitoAuth.login(email.trim(), password);
+        onSignedIn(account);
+      } else if (authPage === 'register') {
+        await cognitoAuth.register(email.trim(), password);
+        setCode('');
+        setPassword('');
         setAuthPage('confirm');
-      } else {
-        await cognitoAuth.confirm(email, code);
+        setMessage('Check your email for the account verification code.');
+      } else if (authPage === 'confirm') {
+        await cognitoAuth.confirm(email.trim(), code.trim());
+        setCode('');
+        setPassword('');
         setAuthPage('login');
-        setError('Email verified. Sign in to continue.');
+        setMessage('Email verified. You can now sign in.');
+      } else if (authPage === 'forgot') {
+        await cognitoAuth.forgotPassword(email.trim());
+        setCode('');
+        setPassword('');
+        setAuthPage('reset');
+        setMessage(
+          'If your account is eligible, Cognito will send a password reset code to your recovery email.',
+        );
+      } else if (authPage === 'reset') {
+        await cognitoAuth.confirmForgotPassword(
+          email.trim(),
+          code.trim(),
+          password,
+        );
+        setPassword('');
+        setCode('');
+        setAuthPage('login');
+        setMessage('Password updated successfully. Sign in with your new password.');
       }
     } catch (error: unknown) {
-      const errorName = error instanceof Error ? error.name : 'UnknownError';
+      const name = error instanceof Error ? error.name : 'UnknownError';
 
-      setError(`Cognito request failed: ${errorName}. Check your network and Cognito setup.`);
+      switch (name) {
+        case 'CodeMismatchException':
+          setError('The verification code is incorrect. Please try again.');
+          break;
+        case 'ExpiredCodeException':
+          setError('The verification code has expired. Request a new code.');
+          break;
+        case 'InvalidPasswordException':
+          setError('The password does not meet your account password requirements.');
+          break;
+        case 'LimitExceededException':
+          setError('Too many attempts. Please try again later.');
+          break;
+        case 'NotAuthorizedException':
+          setError('Authentication was not authorized. Check your details and try again.');
+          break;
+        case 'UsernameExistsException':
+          setError('An account with this email already exists. Please sign in.');
+          break;
+        case 'UserNotConfirmedException':
+          setError('Your account is not confirmed. Verify your email before signing in.');
+          break;
+        default:
+          setError(
+            'The request could not be completed. Check your details, network, and Cognito configuration.',
+          );
+      }
     } finally {
       setBusy(false);
     }
   }
+
+  const heading =
+    authPage === 'login'
+      ? 'Sign in to your workspace'
+      : authPage === 'register'
+        ? 'Create your account'
+        : authPage === 'confirm'
+          ? 'Verify your email'
+          : authPage === 'forgot'
+            ? 'Forgot your password?'
+            : 'Reset your password';
+
+  const description =
+    authPage === 'forgot'
+      ? 'Enter your account email address to request a password reset code.'
+      : authPage === 'reset'
+        ? 'Enter the code from your email and choose a new password.'
+        : authPage === 'confirm'
+          ? 'Enter the verification code sent to your email.'
+          : config.mode === 'mock'
+            ? 'Preview every screen without AWS.'
+            : 'Secure sign-in powered by Amazon Cognito.';
+
+  const buttonText =
+    authPage === 'login'
+      ? 'Sign in'
+      : authPage === 'register'
+        ? 'Sign up'
+        : authPage === 'confirm'
+          ? 'Verify email'
+          : authPage === 'forgot'
+            ? 'Send reset code'
+            : 'Reset password';
 
   return (
     <div className="auth-page">
@@ -108,115 +208,195 @@ function AuthScreen({ onSignedIn }: { onSignedIn: (account: AccountView) => void
           </span>{' '}
           CloudScribe
         </div>
+
         <div className="auth-intro">
           <div className="eyebrow">REAL-TIME AUDIO TRANSCRIPTION</div>
+
           <h1>
             Every conversation,
             <br />
             <em>captured clearly.</em>
           </h1>
-          <p>A seamless transcription workspace built for secure, real-time collaboration.</p>
+
+          <p>
+            A seamless transcription workspace built for secure,
+            real-time collaboration.
+          </p>
+
           <div className="decor-wave">
             <AudioLines size={120} strokeWidth={1} />
             <AudioLines size={120} strokeWidth={1} />
             <AudioLines size={120} strokeWidth={1} />
           </div>
         </div>
+
         <small>MSML 650 · Cloud Computing Project</small>
       </div>
+
       <div className="auth-form-wrap">
         <div className="auth-form">
           <div className="eyebrow">WELCOME TO CLOUDSCRIBE</div>
-          <h2>
-            {authPage === 'login'
-              ? 'Sign in to your workspace'
-              : authPage === 'register'
-                ? 'Create your account'
-                : 'Verify your email'}
-          </h2>
-          <p className="muted">
-            {config.mode === 'mock'
-              ? 'Preview every screen without AWS.'
-              : 'Secure sign-in powered by Amazon Cognito.'}
-          </p>
+
+          <h2>{heading}</h2>
+
+          <p className="muted">{description}</p>
+
           {config.mode === 'mock' ? (
             <>
-              <button className="primary full" onClick={() => onSignedIn(makeDemoAccount())}>
+              <button
+                className="primary full"
+                type="button"
+                onClick={() => onSignedIn(makeDemoAccount())}
+              >
                 Explore workspace <span>↗</span>
               </button>
-              <Banner>Demo only. No AWS calls, real transcription, or persistent accounts.</Banner>
+
+              <Banner>
+                Demo only. No AWS calls, real transcription,
+                or persistent accounts.
+              </Banner>
             </>
           ) : (
             <form onSubmit={(event) => void submit(event)}>
               <label htmlFor="email">Email address</label>
+
               <input
                 id="email"
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
                 required
+                disabled={busy}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
-              {authPage !== 'confirm' ? (
+
+              {(authPage === 'confirm' || authPage === 'reset') && (
                 <>
-                  <label htmlFor="password">Password</label>
-                  <input
-                    id="password"
-                    type="password"
-                    autoComplete={authPage === 'login' ? 'current-password' : 'new-password'}
-                    required
-                    minLength={8}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                </>
-              ) : (
-                <>
-                  <label htmlFor="code">Email confirmation code</label>
+                  <label htmlFor="code">
+                    {authPage === 'confirm'
+                      ? 'Email confirmation code'
+                      : 'Password reset code'}
+                  </label>
+
                   <input
                     id="code"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Enter verification code"
                     required
+                    disabled={busy}
                     value={code}
                     onChange={(event) => setCode(event.target.value)}
                   />
                 </>
               )}
-              <button className="primary full" disabled={busy}>
-                {busy
-                  ? 'Working…'
-                  : authPage === 'login'
-                    ? 'Sign in'
-                    : authPage === 'register'
-                      ? 'Sign up'
-                      : 'Verify email'}
-              </button>
-              {error && (
+
+              {(authPage === 'login' ||
+                authPage === 'register' ||
+                authPage === 'reset') && (
+                <>
+                  <label htmlFor="password">
+                    {authPage === 'reset' ? 'New password' : 'Password'}
+                  </label>
+
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete={
+                      authPage === 'login'
+                        ? 'current-password'
+                        : 'new-password'
+                    }
+                    placeholder={
+                      authPage === 'reset'
+                        ? 'Enter your new password'
+                        : 'Enter your password'
+                    }
+                    required
+                    minLength={authPage === 'login' ? undefined : 8}
+                    disabled={busy}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </>
+              )}
+
+              {authPage === 'login' && (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('forgot')}
+                >
+                  Forgot password?
+                </button>
+              )}
+
+              {message && (
                 <p className="form-feedback" role="status">
+                  {message}
+                </p>
+              )}
+
+              {error && (
+                <p className="form-feedback" role="alert">
                   {error}
                 </p>
               )}
+
               <button
-                className="text-link"
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setAuthPage(authPage === 'login' ? 'register' : 'login');
-                }}
+                className="primary full"
+                type="submit"
+                disabled={busy}
               >
-                {authPage === 'login' ? 'New here? Create an account' : 'Back to sign in'}
+                {busy ? 'Working…' : buttonText}
               </button>
+
+              {authPage === 'login' ? (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('register')}
+                >
+                  New here? Create an account
+                </button>
+              ) : (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('login')}
+                >
+                  Back to sign in
+                </button>
+              )}
+
+              {authPage === 'reset' && (
+                <button
+                  className="text-link"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => navigate('forgot')}
+                >
+                  Request another reset code
+                </button>
+              )}
             </form>
           )}
+
           <div className="auth-security">
-            <ShieldCheck size={16} /> No audio or private transcripts are saved by this frontend
-            preview.
+            <ShieldCheck size={16} />
+            No audio or private transcripts are saved by this frontend preview.
           </div>
         </div>
       </div>
     </div>
   );
 }
+
 
 function EmptyTranscript() {
   return (
@@ -478,7 +658,7 @@ export function App() {
         if (micRef.current !== adapter) return;
         const caption: CaptionView = {
           id: event.source + ':' + String(event.streamEpoch) + ':' + event.resultId,
-          speaker: event.source === 'microphone' ? 'Microphone' : 'System audio',
+          speaker: event.source === 'microphone' ? 'You' : 'System audio',
           timestampMs: event.startMs,
           text: event.text,
           phase: event.phase,
@@ -1268,7 +1448,7 @@ export function App() {
                   </span>
                 </section>
               )}
-              <section className="panel architecture-note">
+              {/*<section className="panel architecture-note">
                 <h3>Accepted team architecture · Option A</h3>
                 <div className="architecture-flow">
                   <span>React UI + AudioWorklet</span>
@@ -1288,7 +1468,7 @@ export function App() {
                   Important: No 16-byte application header, no browser AWS secret, and no raw
                   microphone archive in the accepted initial design.
                 </p>
-              </section>
+              </section>*/}
             </>
           )}
         </main>

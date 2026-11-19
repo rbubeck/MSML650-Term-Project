@@ -80,11 +80,18 @@ export function ContinuousTranscript({
           <div className="transcript-document-body">
             {blocks.map((block, index) => (
               <div className="transcript-document-block" key={block.key}>
-                {index > 0 && (
-                  <div className="transcript-resume-divider">
-                    <span>Resumed {formatClock(block.startMs)}</span>
-                  </div>
-                )}
+              <div className="transcript-speaker-heading">
+                <strong>{block.speaker}</strong>
+                <span>{formatClock(block.startMs)}</span>
+              </div>
+
+
+                {index > 0 &&
+                  blocks[index - 1]?.streamEpoch !== block.streamEpoch && (
+                    <div className="transcript-resume-divider">
+                      <span>Resumed {formatClock(block.startMs)}</span>
+                    </div>
+                  )}
                 <p>
                   {block.finalText && <span>{block.finalText}</span>}
                   {block.partialText && (

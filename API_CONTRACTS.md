@@ -74,6 +74,8 @@ The request idempotency key and `(sessionId, streamEpoch, resultId)` prevent ret
 
 The response identifies every accepted or previously saved final so the UI can move it from `final-observed` to `save-acknowledged`.
 
+The [AWS storage handoff](docs/aws-storage.md) documents the standalone development `POST /segments` smoke endpoint. It accepts one segment with `streamId`, `startTime`, and `endTime` and returns a simple message. The Phase 1 client continues to use `POST /v1/sessions/{sessionId}/segments` and the shared Zod contract. Migration of development test records is `TBD`.
+
 ## Completion and history
 
 The browser calls completion only after sending the provider end frame and settling uploads for finals it observed. `COMPLETED` means the API has closed the application session over its acknowledged records; it does not prove the browser uploaded every provider final.

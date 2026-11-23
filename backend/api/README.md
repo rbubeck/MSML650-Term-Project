@@ -1,6 +1,6 @@
 # Authenticated Control API — Person 2 Phase 1
 
-Status: `POST /v1/sessions/{sessionId}/stream-url`, the Transcribe signer, and an explicitly guarded single-session smoke-test Lambda entry point are implemented and fake-tested. A manual `us-east-2` development deployment issued a capability that Amazon Transcribe accepted during a real browser stream on 2026-11-07. No other application route exists. See [Implementation status](#implementation-status).
+Status: `POST /v1/sessions/{sessionId}/stream-url`, the Transcribe signer, and an explicitly guarded single-session smoke-test Lambda entry point are implemented and fake-tested. A manual `us-east-2` development deployment issued a capability that Amazon Transcribe accepted during a real browser stream on 2026-11-07. The [AWS storage handoff](../../docs/aws-storage.md) records the standalone development `POST /segments` Lambda and its smoke tests. See [Implementation status](#implementation-status).
 
 ## Initial deliverable
 
@@ -35,7 +35,7 @@ Recorded-file/batch endpoints, export/download jobs, summaries, arbitrary profil
 | Owner/state-checked Transcribe URL issuance | **Implemented, fake-tested, development-smoke-verified.** Real Cognito access-token claims reached Lambda through API Gateway and the returned URL opened Transcribe. |
 | Guarded first-stream Lambda entry point | **Implemented, fake-tested, manually deployed for development smoke.** Uses non-durable single-session state and is not an MVP repository. |
 | Create, list, read, rename sessions | Not started. |
-| Final-segment saves and acknowledgments | Not started. |
+| Phase 1 final-segment saves and acknowledgments | The standalone development `POST /segments` Lambda was smoke-tested. The Phase 1 `/v1` route and acknowledgment contract still need implementation. |
 | Session completion | Not started. |
 | Deletion | Not started. |
 | DynamoDB repository adapter | Not started (Person 4). |
@@ -195,7 +195,7 @@ Each item departs from, or fills a gap in, an existing rule or document. The rea
 10. **Hand-written API Gateway event types** instead of `@types/aws-lambda`, to avoid another dependency. They cover only the fields the handler reads.
 11. **Contracts resolve differently in typecheck and tests.** Typecheck maps `@live-transcription/contracts` to its source with `paths`, as the frontend does. Vitest resolves it through `node_modules` to the built `dist/`, so contracts must be built before testing (as the frontend's `pcm-worklet` test already requires). A stale `dist/` can make the two disagree. The `build` script rebuilds contracts first because the root workspace order builds `backend/api` before `packages/contracts`. Two cleaner fixes would edit shared files and were not made: a Vitest alias to the contracts source in the root config, or TypeScript project references.
 12. **Test fakes live in `src/testing/`.** They are not named `*.test.ts`, so `tsconfig.build.json` excludes the folder explicitly.
-13. **Only a smoke-test entry point exists.** `smoke-test-lambda.ts` is deployable for the first controlled stream but intentionally uses non-durable single-process state. The production entry point still needs Person 4's adapter and accepted Region/language configuration.
+13. **The current entry points support development smoke tests.** `smoke-test-lambda.ts` uses non-durable single-process state for the first controlled stream. `src/save-segment/index.mjs` records the standalone Console-managed DynamoDB save Lambda. The production entry point still needs Person 4's adapter and accepted Region/language configuration.
 14. **Automated-test Region and language are synthetic.** Unit tests use `us-east-1` and `en-US`; the manual development smoke used `us-east-2` and `en-US`. That does not establish the final Region/language policy.
 15. **IAM scope.** The AWS example grants `transcribe:StartStreamTranscriptionWebSocket` on `Resource: "*"`. Compensating controls are the owner check, short expiry, rate limits and monitoring; see `docs/security.md`.
 16. **The `test` script runs the root Vitest config** filtered to this workspace (`vitest run --root ../.. backend/api`), because Vitest is configured once at the root.

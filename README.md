@@ -22,6 +22,7 @@ sign in
 
 - The Node.js 24/npm 11/TypeScript 6 strict/ESM/Zod 4/Vitest 5/ESLint 10/Prettier 3 workspace baseline exists.
 - Python word-error-rate scripts have been migrated to `evaluation/scripts/`; reference metadata and existing evaluation artifacts remain in place. See `evaluation/README.md` for evaluation details.
+- The [AWS storage handoff](docs/aws-storage.md) records a standalone development segment-save smoke test.
 - A historical local server-side Transcribe experiment succeeded in `us-east-1` on 2026-11-02. It is **not** evidence of Option A browser streaming, signing, persistence, or deployment. The Option B code has been removed; its history remains in Git.
 - A paid development account and $20 monthly AWS Budget alert were reported for that experiment. Reverify account, Region, budget, quotas, and permissions before any new AWS work. A budget alert is not a hard cost cap.
 

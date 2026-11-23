@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "allowJs": true,
     "types": ["node"],
     "paths": {
       "@live-transcription/contracts": ["../../packages/contracts/src/index.ts"]
